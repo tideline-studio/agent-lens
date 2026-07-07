@@ -1,0 +1,109 @@
+import XCTest
+import Foundation
+import IPC
+import Dependencies
+@testable import DaemonCore
+
+// MARK: - Helpers (file-level so async let can capture them without non-Sendable self)
+
+private actor ResultBox {
+    private var value: ResponseResult?
+    func set(_ v: ResponseResult) { value = v }
+    func get() -> ResponseResult? { value }
+}
+
+private func daemonDispatch(core: DaemonCore, command: Command) async -> ResponseResult {
+    let box = ResultBox()
+    let handle = RequestHandle(
+        id: UUID().uuidString,
+        receivedAt: ContinuousClock().now,
+        command: command
+    ) { result in await box.set(result) }
+    await core.dispatch(handle)
+    return await box.get()!
+}
+
+// MARK: - Tests
+
+final class DaemonLifecycleTests: XCTestCase {
+
+    private var root: URL!
+
+    override func setUpWithError() throws {
+        root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("alens-lifecycle-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    // MARK: - Status
+
+    func testStatusReturnsNoServersAndApproxUptime() async throws {
+        let core = DaemonCore(root: root, logger: .init(label: "test"))
+        let result = await daemonDispatch(core: core, command: .status)
+        guard case .ok(.status(let report)) = result else {
+            XCTFail("expected .status, got \(result)"); return
+        }
+        XCTAssertEqual(report.servers, [])
+        XCTAssertGreaterThanOrEqual(report.uptimeSeconds, 0)
+        XCTAssertLessThan(report.uptimeSeconds, 5)
+    }
+
+    // MARK: - Stop
+
+    func testStopRepliesAck() async throws {
+        let core = DaemonCore(root: root, logger: .init(label: "test"))
+        let result = await daemonDispatch(core: core, command: .stop)
+        XCTAssertEqual(result, .ok(.ack))
+    }
+
+    // MARK: - Path validation
+
+    func testDiagnosePathInsideRootReturnsDiagnoseResult() async throws {
+        let core = DaemonCore(root: root, logger: .init(label: "test"))
+        let path = root.appendingPathComponent("foo.swift").path
+        let result = await daemonDispatch(core: core, command: .diagnose(files: [path], timeoutSeconds: 5))
+        guard case .ok(.diagnose(_)) = result else {
+            XCTFail("expected .ok(.diagnose), got \(result)"); return
+        }
+    }
+
+    func testDiagnosePathOutsideRootReturnsError() async throws {
+        let core = DaemonCore(root: root, logger: .init(label: "test"))
+        let result = await daemonDispatch(core: core, command: .diagnose(files: ["/etc/passwd"], timeoutSeconds: 5))
+        guard case .err(let e) = result else {
+            XCTFail("expected .err, got \(result)"); return
+        }
+        XCTAssertEqual(e.code, .pathOutsideRoot)
+    }
+
+    func testLintPathOutsideRootReturnsError() async throws {
+        let core = DaemonCore(root: root, logger: .init(label: "test"))
+        let result = await daemonDispatch(core: core, command: .lint(files: ["/etc/passwd"]))
+        guard case .err(let e) = result else {
+            XCTFail("expected .err, got \(result)"); return
+        }
+        XCTAssertEqual(e.code, .pathOutsideRoot)
+    }
+
+    func testCheckPathInsideRootReturnsCheckResult() async throws {
+        let core = DaemonCore(root: root, logger: .init(label: "test"))
+        let path = root.appendingPathComponent("foo.swift").path
+        let result = await daemonDispatch(core: core, command: .check(files: [path], timeoutSeconds: 5))
+        guard case .ok(.check(_, _)) = result else {
+            XCTFail("expected .ok(.check), got \(result)"); return
+        }
+    }
+
+    func testCheckPathOutsideRootReturnsError() async throws {
+        let core = DaemonCore(root: root, logger: .init(label: "test"))
+        let result = await daemonDispatch(core: core, command: .check(files: ["/etc/passwd"], timeoutSeconds: 5))
+        guard case .err(let e) = result else {
+            XCTFail("expected .err, got \(result)"); return
+        }
+        XCTAssertEqual(e.code, .pathOutsideRoot)
+    }
+}
