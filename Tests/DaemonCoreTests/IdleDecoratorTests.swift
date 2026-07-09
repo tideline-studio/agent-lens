@@ -9,26 +9,11 @@ import Clocks
 
 private actor MockCore: CoreProtocol {
     func start() async throws {}
-    func dispatch(_ handle: RequestHandle) async {
-        await handle.reply(.ok(.ack))
-    }
-}
-
-private actor ResultBox {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
+    func dispatch(_ request: Request) async -> ResponseResult { .ok(.ack) }
 }
 
 private func decoratorDispatch(decorator: IdleDecorator, command: Command) async -> ResponseResult {
-    let box = ResultBox()
-    let handle = RequestHandle(
-        id: UUID().uuidString,
-        receivedAt: ContinuousClock().now,
-        command: command
-    ) { result in await box.set(result) }
-    await decorator.dispatch(handle)
-    return await box.get()!
+    await decorator.dispatch(Request(command: command))
 }
 
 // MARK: - Tests

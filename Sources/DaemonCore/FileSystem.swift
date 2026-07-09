@@ -16,10 +16,12 @@ public struct FileSystem: Sendable {
 public struct FileStat: Sendable {
     public let mtimeNs: UInt64
     public let size: UInt64
+    public let isDirectory: Bool
 
-    public init(mtimeNs: UInt64, size: UInt64) {
+    public init(mtimeNs: UInt64, size: UInt64, isDirectory: Bool = false) {
         self.mtimeNs = mtimeNs
         self.size = size
+        self.isDirectory = isDirectory
     }
 }
 
@@ -30,7 +32,8 @@ extension FileSystem {
             let attrs = try FileManager.default.attributesOfItem(atPath: path)
             let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
             let size = (attrs[.size] as? Int) ?? 0
-            return FileStat(mtimeNs: UInt64(max(0, mtime) * 1e9), size: UInt64(size))
+            let isDir = (attrs[.type] as? FileAttributeType) == .typeDirectory
+            return FileStat(mtimeNs: UInt64(max(0, mtime) * 1e9), size: UInt64(size), isDirectory: isDir)
         }
     )
 }

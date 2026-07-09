@@ -75,15 +75,15 @@ public actor DaemonCore: CoreProtocol {
 
     // MARK: - RequestDispatcher
 
-    public func dispatch(_ handle: RequestHandle) async {
-        switch handle.command {
+    public func dispatch(_ request: Request) async -> ResponseResult {
+        switch request.command {
 
         case .start:
-            await handle.reply(.ok(.ack))
+            return .ok(.ack)
 
         case .stop:
             logger.info("stop command received")
-            await handle.reply(.ok(.ack))
+            return .ok(.ack)
 
         case .status:
             let uptime = Date().timeIntervalSince(startDate)
@@ -94,29 +94,21 @@ public actor DaemonCore: CoreProtocol {
                 let state = await client.readinessState
                 statuses.append(ServerStatus(language: sid, readinessState: state))
             }
-            await handle.reply(.ok(.status(StatusReport(servers: statuses, uptimeSeconds: uptime))))
+            return .ok(.status(StatusReport(servers: statuses, uptimeSeconds: uptime)))
 
         case .diagnose(let files, let timeoutSeconds):
-            if let err = firstPathError(in: files) {
-                await handle.reply(.err(err))
-                return
-            }
-            let diags = await computeDiagnose(files: files, timeoutSeconds: timeoutSeconds)
-            await handle.reply(.ok(.diagnose(diags)))
+            if let err = firstPathError(in: files) { return .err(err) }
+            return .ok(.diagnose(await computeDiagnose(files: files, timeoutSeconds: timeoutSeconds)))
 
         case .lint(let files):
-            if let err = firstPathError(in: files) {
-                await handle.reply(.err(err))
-                return
-            }
-            await handle.reply(.ok(.lint(await computeLint(files: files))))
+            if let err = firstPathError(in: files) { return .err(err) }
+            return .ok(.lint(await computeLint(files: files)))
 
         case .check(let files, let timeoutSeconds):
-            if let err = firstPathError(in: files) {
-                await handle.reply(.err(err))
-                return
-            }
-            await handleCheck(handle, files: files, timeoutSeconds: timeoutSeconds)
+            if let err = firstPathError(in: files) { return .err(err) }
+            async let diags = computeDiagnose(files: files, timeoutSeconds: timeoutSeconds)
+            async let lints = computeLint(files: files)
+            return .ok(.check(diagnostics: await diags, lint: await lints))
         }
     }
 
@@ -126,12 +118,11 @@ public actor DaemonCore: CoreProtocol {
                 return ErrorPayload(
                     code: .pathOutsideRoot, message: "\(path) is outside daemon root \(root.path)")
             }
-            var isDir: ObjCBool = false
-            if !FileManager.default.fileExists(atPath: path, isDirectory: &isDir) {
+            guard let stat = try? fileSystem.stat(path) else {
                 return ErrorPayload(
                     code: .fileNotFound, message: "\(path) does not exist")
             }
-            if isDir.boolValue {
+            if stat.isDirectory {
                 return ErrorPayload(
                     code: .pathIsDirectory, message: "\(path) is a directory, not a file")
             }
@@ -140,18 +131,6 @@ public actor DaemonCore: CoreProtocol {
     }
 
     // MARK: - Diagnose
-
-    /// Runs both diagnose and lint concurrently and returns them as one payload.
-    /// The two stay as separate maps — see Payload.check for why we don't join per file.
-    private func handleCheck(
-        _ handle: RequestHandle,
-        files: [String],
-        timeoutSeconds: Double
-    ) async {
-        async let diags = computeDiagnose(files: files, timeoutSeconds: timeoutSeconds)
-        async let lints = computeLint(files: files)
-        await handle.reply(.ok(.check(diagnostics: await diags, lint: await lints)))
-    }
 
     private func computeDiagnose(
         files: [String],

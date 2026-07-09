@@ -126,13 +126,7 @@ final class FSEventsFilterTests: XCTestCase {
         // Simulate the file being already-open via FilesState.
         // We dispatch a diagnose command so DaemonCore records the file as open.
         let path = root.appendingPathComponent("Foo.swift").path
-        let box = FSResultBox()
-        let handle = RequestHandle(
-            id: "1", receivedAt: ContinuousClock().now,
-            command: .diagnose(files: [path], timeoutSeconds: 1)
-        ) { r in await box.set(r) }
-        await core.dispatch(handle)
-        _ = await box.get()
+        _ = await core.dispatch(Request(command: .diagnose(files: [path], timeoutSeconds: 1)))
 
         // Now emit an FSEvents event for the same file.
         await watcher.emit(FileEvent(path: path, kind: .modified))
@@ -163,8 +157,3 @@ final class FSEventsFilterTests: XCTestCase {
     }
 }
 
-private actor FSResultBox {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
-}

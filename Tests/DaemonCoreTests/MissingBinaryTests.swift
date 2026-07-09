@@ -27,14 +27,7 @@ final class MissingBinaryTests: XCTestCase {
         }
 
         let path = root.appendingPathComponent("foo.swift").path
-        let box = MissingResultBox()
-        let handle = RequestHandle(
-            id: "1",
-            receivedAt: ContinuousClock().now,
-            command: .lint(files: [path])
-        ) { result in await box.set(result) }
-        await core.dispatch(handle)
-        let result = await box.get()!
+        let result = await core.dispatch(Request(command: .lint(files: [path])))
 
         guard case .ok(.lint(let files)) = result else {
             XCTFail("expected .ok(.lint), got \(result)"); return
@@ -52,14 +45,7 @@ final class MissingBinaryTests: XCTestCase {
         }
 
         let path = root.appendingPathComponent("readme.txt").path
-        let box = MissingResultBox()
-        let handle = RequestHandle(
-            id: "2",
-            receivedAt: ContinuousClock().now,
-            command: .lint(files: [path])
-        ) { result in await box.set(result) }
-        await core.dispatch(handle)
-        let result = await box.get()!
+        let result = await core.dispatch(Request(command: .lint(files: [path])))
 
         guard case .ok(.lint(let files)) = result else {
             XCTFail("expected .ok(.lint), got \(result)"); return
@@ -68,8 +54,3 @@ final class MissingBinaryTests: XCTestCase {
     }
 }
 
-private actor MissingResultBox {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
-}

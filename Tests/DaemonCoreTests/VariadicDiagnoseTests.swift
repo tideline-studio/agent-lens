@@ -9,20 +9,7 @@ import Dependencies
 // MARK: - Helpers (local copies; not shared across test files due to access control)
 
 private func variadicDispatch(core: DaemonCore, command: Command) async -> ResponseResult {
-    let box = VarResultBox()
-    let handle = RequestHandle(
-        id: UUID().uuidString,
-        receivedAt: ContinuousClock().now,
-        command: command
-    ) { result in await box.set(result) }
-    await core.dispatch(handle)
-    return await box.get()!
-}
-
-private actor VarResultBox {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
+    await core.dispatch(Request(command: command))
 }
 
 private struct FixedDetection2: LSPServerDetection, Sendable {

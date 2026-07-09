@@ -28,20 +28,7 @@ private final actor StatusMockClient: LSPClient {
 }
 
 private func dispatch(core: DaemonCore, command: Command) async -> ResponseResult {
-    let box = ResultBox2()
-    let handle = RequestHandle(
-        id: UUID().uuidString,
-        receivedAt: ContinuousClock().now,
-        command: command
-    ) { result in await box.set(result) }
-    await core.dispatch(handle)
-    return await box.get()!
-}
-
-private actor ResultBox2 {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
+    await core.dispatch(Request(command: command))
 }
 
 final class StatusReportingTests: XCTestCase {
