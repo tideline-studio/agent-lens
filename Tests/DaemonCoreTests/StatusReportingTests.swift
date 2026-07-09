@@ -2,7 +2,6 @@ import XCTest
 import Foundation
 import IPC
 import LSPClient
-import LSPServerDetection
 import DaemonCore
 import Dependencies
 
@@ -58,23 +57,28 @@ final class StatusReportingTests: XCTestCase {
         let swiftMock = StatusMockClient(serverID: "sourcekit-lsp", state: .ready)
         let tsMock = StatusMockClient(serverID: "typescript-language-server", state: .indexing)
 
-        let detection = DetectionResult(lspServers: [
-            ServerConfig(serverID: "sourcekit-lsp", language: .swift, executable: "sourcekit-lsp"),
-            ServerConfig(serverID: "ts-lsp", language: .typescript, executable: "ts-lsp"),
-        ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
             if config.language == .swift { return swiftMock }
             return tsMock
         }
 
         let core = withDependencies {
-            $0.lspServerDetection = FixedDetection(result: detection)
             $0.lspClientFactory = factory
+            $0.fileSystem = FileSystem(
+                contents: { _ in Data() },
+                stat: { _ in FileStat(mtimeNs: 1, size: 0) }
+            )
         } operation: {
             DaemonCore(root: root, logger: .init(label: "test"))
         }
 
         try await core.start()
+
+        // Trigger lazy start for both languages so status sees them.
+        let swiftPath = root.appendingPathComponent("foo.swift").path
+        let tsPath = root.appendingPathComponent("index.ts").path
+        _ = await dispatch(core: core, command: .diagnose(files: [swiftPath, tsPath], timeoutSeconds: 1))
+
         let result = await dispatch(core: core, command: .status)
 
         guard case .ok(.status(let report)) = result else {
@@ -90,9 +94,3 @@ final class StatusReportingTests: XCTestCase {
     }
 }
 
-// MARK: - Helpers
-
-private struct FixedDetection: LSPServerDetection, Sendable {
-    let result: DetectionResult
-    func detect(root: URL) async throws -> DetectionResult { result }
-}

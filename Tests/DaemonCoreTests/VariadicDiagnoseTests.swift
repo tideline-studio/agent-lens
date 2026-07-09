@@ -2,7 +2,6 @@ import XCTest
 import Foundation
 import IPC
 import LSPClient
-import LSPServerDetection
 import DaemonCore
 import Dependencies
 
@@ -10,11 +9,6 @@ import Dependencies
 
 private func variadicDispatch(core: DaemonCore, command: Command) async -> ResponseResult {
     await core.dispatch(Request(command: command))
-}
-
-private struct FixedDetection2: LSPServerDetection, Sendable {
-    let result: DetectionResult
-    func detect(root: URL) async throws -> DetectionResult { result }
 }
 
 // MARK: - VariadicDiagnoseTests
@@ -37,10 +31,6 @@ final class VariadicDiagnoseTests: XCTestCase {
         let swiftClient = DiagnoseMockClient2(serverID: "sourcekit-lsp")
         let tsClient = DiagnoseMockClient2(serverID: "typescript-language-server")
 
-        let detection = DetectionResult(lspServers: [
-            ServerConfig(serverID: "sourcekit-lsp", language: .swift, executable: "sourcekit-lsp"),
-            ServerConfig(serverID: "ts-lsp",         language: .typescript, executable: "ts-lsp"),
-        ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
             config.language == .swift ? swiftClient : tsClient
         }
@@ -49,7 +39,6 @@ final class VariadicDiagnoseTests: XCTestCase {
         let tsPath    = root.appendingPathComponent("index.ts").path
 
         let core = withDependencies {
-            $0.lspServerDetection = FixedDetection2(result: detection)
             $0.lspClientFactory   = factory
             $0.fileSystem         = FileSystem(
                 contents: { _ in Data("// ok".utf8) },
@@ -91,16 +80,11 @@ final class VariadicDiagnoseTests: XCTestCase {
             DiagnosticBatch(diagnostics: [], version: 1, arrived: false), for: tsURI
         )
 
-        let detection = DetectionResult(lspServers: [
-            ServerConfig(serverID: "sourcekit-lsp", language: .swift, executable: "sourcekit-lsp"),
-            ServerConfig(serverID: "ts-lsp",         language: .typescript, executable: "ts-lsp"),
-        ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
             config.language == .swift ? swiftClient : tsClient
         }
 
         let core = withDependencies {
-            $0.lspServerDetection = FixedDetection2(result: detection)
             $0.lspClientFactory   = factory
             $0.fileSystem         = FileSystem(
                 contents: { _ in Data() },
@@ -125,14 +109,10 @@ final class VariadicDiagnoseTests: XCTestCase {
 
     func testSameLanguageThreeFilesAllDiagnosed() async throws {
         let swiftClient = DiagnoseMockClient2(serverID: "sourcekit-lsp")
-        let detection = DetectionResult(lspServers: [
-            ServerConfig(serverID: "sourcekit-lsp", language: .swift, executable: "sourcekit-lsp"),
-        ])
 
         let paths = (1...3).map { root.appendingPathComponent("File\($0).swift").path }
 
         let core = withDependencies {
-            $0.lspServerDetection = FixedDetection2(result: detection)
             $0.lspClientFactory   = { _ in swiftClient }
             $0.fileSystem         = FileSystem(
                 contents: { _ in Data("// ok".utf8) },
@@ -162,15 +142,11 @@ final class VariadicDiagnoseTests: XCTestCase {
 
     func testUnknownExtensionGetsStalePlaceholderRestSucceed() async throws {
         let swiftClient = DiagnoseMockClient2(serverID: "sourcekit-lsp")
-        let detection = DetectionResult(lspServers: [
-            ServerConfig(serverID: "sourcekit-lsp", language: .swift, executable: "sourcekit-lsp"),
-        ])
 
         let swiftPath = root.appendingPathComponent("Valid.swift").path
         let txtPath   = root.appendingPathComponent("readme.txt").path
 
         let core = withDependencies {
-            $0.lspServerDetection = FixedDetection2(result: detection)
             $0.lspClientFactory   = { _ in swiftClient }
             $0.fileSystem         = FileSystem(
                 contents: { _ in Data() },

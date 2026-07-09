@@ -3,6 +3,7 @@ import FileSystemWatcher
 import Foundation
 import IPC
 import LSPClient
+import LSPServerDetection
 import Linter
 import Logging
 
@@ -11,7 +12,6 @@ public actor DaemonCore: CoreProtocol {
     private let startDate: Date
 
     @Dependency(\.fileSystem) private var fileSystem
-    @Dependency(\.lspServerDetection) private var detection
     @Dependency(\.linterFactory) private var linterFactory
     @Dependency(\.fileSystemWatcher) private var fileSystemWatcher
 
@@ -28,48 +28,38 @@ public actor DaemonCore: CoreProtocol {
 
     // MARK: - Startup
 
-    /// Detects project languages and starts LSP clients.
+    /// Sets up the server router and infrastructure. LSP clients start lazily on first use.
     /// Called once from the daemon executable; safe to skip in tests that don't need routing.
     public func start() async throws {
-        let result = try await detection.detect(root: root)
         let router = withDependencies(from: self) {
-            ServerRouter(detection: result, logger: logger)
+            ServerRouter(
+                root: root,
+                lspConfig: LSPConfig.load(from: root),
+                logger: logger,
+                onClientStarted: { [weak self] client in
+                    await self?.subscribeToEvents(from: client)
+                }
+            )
         }
         serverRouter = router
-        await router.start()
-        logger.info("started \(result.lspServers.count) LSP server(s)")
 
-        // Send the LSP initialize handshake so each server can begin indexing.
-        let clients = await router.allClients()
-        for client in clients {
-            let sid = await client.serverID
-            do {
-                try await client.initialize(rootURI: root.absoluteString)
-            } catch {
-                logger.warning("LSP initialize failed for \(sid): \(error)")
-            }
-        }
-
-        // Subscribe to each client's server-initiated events.
-        for client in clients {
-            let serverID = await client.serverID
-            let events = await client.serverEvents
-            Task { [weak self] in
-                for await event in events {
-                    await self?.handleServerEvent(event, serverID: serverID)
-                }
-            }
-        }
-
-        // Load linter config from .alens.json (falls back to built-in defaults).
         linterConfig = LinterConfig.load(from: root) ?? .defaults
 
-        // Start FSEvents watcher.
         let wr = watchRegistry
         let rt = router
         let log = logger
         try await fileSystemWatcher.start(root: root) { [weak self] event in
             await self?.handlePathEvent(event, watchRegistry: wr, router: rt, logger: log)
+        }
+    }
+
+    private func subscribeToEvents(from client: any LSPClient) async {
+        let serverID = await client.serverID
+        let events = await client.serverEvents
+        Task { [weak self] in
+            for await event in events {
+                await self?.handleServerEvent(event, serverID: serverID)
+            }
         }
     }
 

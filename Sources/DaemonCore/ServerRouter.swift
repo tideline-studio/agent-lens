@@ -5,71 +5,118 @@ import LSPServerDetection
 import Dependencies
 import Logging
 
-/// Routes file paths to their LSP client and linter by extension.
-/// Owns the lifecycle of started LSP clients.
 public actor ServerRouter {
     @Dependency(\.lspClientFactory) private var lspClientFactory
 
-    private let detection: DetectionResult
+    private let root: URL
+    // nil = no lspServers key in .alens.json → use built-in defaults
+    // non-nil (even empty) = use exactly these servers, no fallback to defaults
+    private let customConfigs: [Language: ServerConfig]?
     private let logger: Logger
-    private var clients: [Language: any LSPClient] = [:]
-    private var didStart = false
+    private let onClientStarted: @Sendable (any LSPClient) async -> Void
 
-    public init(detection: DetectionResult, logger: Logger = Logger(label: "ServerRouter")) {
-        self.detection = detection
+    // Completed starts
+    private var clients: [Language: any LSPClient] = [:]
+    // In-flight starts — stored synchronously before any await so concurrent
+    // callers for the same language join the same task instead of double-starting.
+    private var startTasks: [Language: Task<(any LSPClient)?, Never>] = [:]
+
+    private static let defaults: [Language: ServerConfig] = [
+        .swift:      ServerConfig(serverID: "sourcekit-lsp",               language: .swift,      executable: "sourcekit-lsp"),
+        .typescript: ServerConfig(serverID: "typescript-language-server",  language: .typescript, executable: "typescript-language-server", args: ["--stdio"]),
+        .javascript: ServerConfig(serverID: "typescript-language-server",  language: .javascript, executable: "typescript-language-server", args: ["--stdio"]),
+        .python:     ServerConfig(serverID: "pyright-langserver",          language: .python,     executable: "pyright-langserver",         args: ["--stdio"]),
+        .go:         ServerConfig(serverID: "gopls",                       language: .go,         executable: "gopls"),
+        .rust:       ServerConfig(serverID: "rust-analyzer",               language: .rust,       executable: "rust-analyzer"),
+    ]
+
+    public init(
+        root: URL,
+        lspConfig: LSPConfig?,
+        logger: Logger,
+        onClientStarted: @escaping @Sendable (any LSPClient) async -> Void
+    ) {
+        self.root = root
+        self.customConfigs = lspConfig.map { config in
+            Dictionary(
+                config.serverConfigs().map { ($0.language, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+        }
         self.logger = logger
+        self.onClientStarted = onClientStarted
     }
 
-    // MARK: - Lifecycle
+    // MARK: - Client access
 
-    /// Boots every detected LSP client concurrently. Idempotent: a second call is
-    /// a programming error and is logged and ignored rather than double-booting.
-    public func start() async {
-        guard !didStart else {
-            logger.error("ServerRouter.start() called more than once; ignoring")
-            return
-        }
-        didStart = true
+    public func lspClient(for path: String) async -> (any LSPClient)? {
+        guard let lang = Language.from(path: path) else { return nil }
+        return await clientForLanguage(lang)
+    }
 
+    private func clientForLanguage(_ language: Language) async -> (any LSPClient)? {
+        // Fast path: already running.
+        if let client = clients[language] { return client }
+
+        // In-flight: join existing start task instead of spawning a second server.
+        if let task = startTasks[language] { return await task.value }
+
+        // No config for this language → can't start.
+        guard let config = configForLanguage(language) else { return nil }
+
+        // Capture actor-isolated state before the unstructured Task so the
+        // closure is Sendable and doesn't need actor isolation itself.
         let factory = lspClientFactory
+        let root = self.root
         let logger = self.logger
-        await withTaskGroup(of: Void.self) { group in
-            for config in detection.lspServers {
-                group.addTask {
-                    do {
-                        let client = try await factory(config)
-                        await self.storeClient(client, for: config.language)
-                    } catch {
-                        logger.error("failed to start LSP server for \(config.language.rawValue): \(error)")
-                    }
-                }
+        let onClientStarted = self.onClientStarted
+        let langName = language.rawValue
+
+        // Store the task *synchronously* (before any await) so any concurrent
+        // caller that enters between now and task completion joins this task.
+        let task = Task<(any LSPClient)?, Never> {
+            do {
+                let client = try await factory(config)
+                try? await client.initialize(rootURI: root.absoluteString)
+                await onClientStarted(client)
+                return client
+            } catch {
+                logger.error("failed to start \(langName) LSP: \(error)")
+                return nil
             }
         }
-    }
+        startTasks[language] = task
 
-    /// Shuts down all clients in parallel.
-    public func stop() async {
-        let all = Array(clients.values)
-        clients = [:]
-        await withTaskGroup(of: Void.self) { group in
-            for client in all { group.addTask { await client.shutdown() } }
+        let client = await task.value
+        startTasks.removeValue(forKey: language)
+        if let client {
+            clients[language] = client
         }
+        // Evict on failure so the next diagnose retries (binary may appear on PATH later).
+        return client
     }
 
-    // MARK: - Routing
-
-    /// Returns the LSP client for the file's extension, or nil if unrouted.
-    public func lspClient(for path: String) -> (any LSPClient)? {
-        guard let lang = Language.from(path: path) else { return nil }
-        return clients[lang]
+    private func configForLanguage(_ language: Language) -> ServerConfig? {
+        if let custom = customConfigs {
+            return custom[language]  // explicit declaration — no fallback
+        }
+        return Self.defaults[language]
     }
 
-    /// All currently-started clients (used by `status` and graceful shutdown).
-    public func allClients() -> [any LSPClient] {
-        Array(clients.values)
-    }
+    // MARK: - Accessors
 
-    private func storeClient(_ client: any LSPClient, for language: Language) {
-        clients[language] = client
+    public func allClients() -> [any LSPClient] { Array(clients.values) }
+
+    // MARK: - Shutdown
+
+    public func stop() async {
+        let inflight = Array(startTasks.values)
+        let running  = Array(clients.values)
+        startTasks = [:]
+        clients    = [:]
+        inflight.forEach { $0.cancel() }
+        await withTaskGroup(of: Void.self) { group in
+            for client in running { group.addTask { await client.shutdown() } }
+        }
     }
 }

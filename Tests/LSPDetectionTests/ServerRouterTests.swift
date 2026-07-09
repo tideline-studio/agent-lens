@@ -5,6 +5,7 @@ import LSPClient
 import LSPServerDetection
 import DaemonCore
 import Dependencies
+import Logging
 
 // MARK: - MockLSPClient
 
@@ -34,6 +35,9 @@ final actor MockLSPClient: LSPClient {
 // MARK: - Tests
 
 final class ServerRouterTests: XCTestCase {
+
+    private let root = URL(fileURLWithPath: NSTemporaryDirectory())
+    private let logger = Logger(label: "test")
 
     // MARK: - language(for:) routing table
 
@@ -71,26 +75,24 @@ final class ServerRouterTests: XCTestCase {
         XCTAssertNil(Language.from(path: "/tmp/foo"))
     }
 
-    // MARK: - start / routing / allClients
+    // MARK: - Lazy start via lspClient(for:)
 
-    func testStartCallsFactoryForEachDetectedServer() async throws {
-        let swiftConfig = ServerConfig(serverID: "sk-lsp", language: .swift, executable: "sourcekit-lsp")
-        let tsConfig = ServerConfig(serverID: "ts-lsp", language: .typescript, executable: "typescript-language-server")
-        let detection = DetectionResult(lspServers: [swiftConfig, tsConfig])
-
+    func testLazyStartCallsFactoryOnFirstUse() async throws {
         let collector = IDCollector()
+        let lspConfig = LSPConfig(lspServers: [
+            "swift": LSPConfig.ServerSpec(command: "sk-lsp"),
+            "typescript": LSPConfig.ServerSpec(command: "ts-lsp"),
+        ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
             await collector.add(config.serverID)
             return MockLSPClient(serverID: config.serverID)
         }
-
-        let router = withDependencies {
-            $0.lspClientFactory = factory
-        } operation: {
-            ServerRouter(detection: detection)
+        let router = withDependencies { $0.lspClientFactory = factory } operation: {
+            ServerRouter(root: root, lspConfig: lspConfig, logger: logger, onClientStarted: { _ in })
         }
 
-        await router.start()
+        _ = await router.lspClient(for: "/tmp/foo.swift")
+        _ = await router.lspClient(for: "/tmp/index.ts")
 
         let createdIDs = await collector.ids
         XCTAssertEqual(Set(createdIDs), Set(["sk-lsp", "ts-lsp"]))
@@ -99,16 +101,16 @@ final class ServerRouterTests: XCTestCase {
     }
 
     func testLspClientForPathReturnsCorrectClient() async throws {
-        let swiftConfig = ServerConfig(serverID: "sk-lsp", language: .swift, executable: "sourcekit-lsp")
-        let detection = DetectionResult(lspServers: [swiftConfig])
-
+        // Explicit config: only swift. Python has no entry → nil.
+        let lspConfig = LSPConfig(lspServers: [
+            "swift": LSPConfig.ServerSpec(command: "sourcekit-lsp"),
+        ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
             MockLSPClient(serverID: config.serverID)
         }
         let router = withDependencies { $0.lspClientFactory = factory } operation: {
-            ServerRouter(detection: detection)
+            ServerRouter(root: root, lspConfig: lspConfig, logger: logger, onClientStarted: { _ in })
         }
-        await router.start()
 
         let client = await router.lspClient(for: "/tmp/foo.swift")
         XCTAssertNotNil(client)
@@ -116,10 +118,27 @@ final class ServerRouterTests: XCTestCase {
         XCTAssertNil(noClient)
     }
 
-    func testStopShutdownsAllClients() async throws {
-        let swiftConfig = ServerConfig(serverID: "sk-lsp", language: .swift, executable: "sourcekit-lsp")
-        let detection = DetectionResult(lspServers: [swiftConfig])
+    func testDefaultConfigsUsedWhenNoLspConfig() async throws {
+        // nil lspConfig → static defaults → all standard languages routable
+        let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
+            MockLSPClient(serverID: config.serverID)
+        }
+        let router = withDependencies { $0.lspClientFactory = factory } operation: {
+            ServerRouter(root: root, lspConfig: nil, logger: logger, onClientStarted: { _ in })
+        }
 
+        let swiftClient = await router.lspClient(for: "/tmp/foo.swift")
+        let pyClient = await router.lspClient(for: "/tmp/foo.py")
+        let noClient = await router.lspClient(for: "/tmp/foo.txt")
+        XCTAssertNotNil(swiftClient)
+        XCTAssertNotNil(pyClient)
+        XCTAssertNil(noClient)
+    }
+
+    func testStopShutdownsAllClients() async throws {
+        let lspConfig = LSPConfig(lspServers: [
+            "swift": LSPConfig.ServerSpec(command: "sk-lsp"),
+        ])
         let box = MockClientBox()
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
             let m = MockLSPClient(serverID: config.serverID)
@@ -127,32 +146,33 @@ final class ServerRouterTests: XCTestCase {
             return m
         }
         let router = withDependencies { $0.lspClientFactory = factory } operation: {
-            ServerRouter(detection: detection)
+            ServerRouter(root: root, lspConfig: lspConfig, logger: logger, onClientStarted: { _ in })
         }
-        await router.start()
+
+        _ = await router.lspClient(for: "/tmp/foo.swift")
         await router.stop()
 
         let mock = await box.get()!
         let didShutdown = await mock.shutdownCalled
+        let remaining = await router.allClients()
         XCTAssertTrue(didShutdown)
-        let clients = await router.allClients()
-        XCTAssertTrue(clients.isEmpty)
+        XCTAssertTrue(remaining.isEmpty)
     }
 
-    func testStartIgnoresFactoryFailures() async throws {
-        let config = ServerConfig(serverID: "fails", language: .swift, executable: "/nonexistent")
-        let detection = DetectionResult(lspServers: [config])
-
+    func testFactoryFailureReturnsNilWithoutThrowing() async throws {
+        let lspConfig = LSPConfig(lspServers: [
+            "swift": LSPConfig.ServerSpec(command: "/nonexistent"),
+        ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { _ in
             throw LSPClientError.processExited
         }
         let router = withDependencies { $0.lspClientFactory = factory } operation: {
-            ServerRouter(detection: detection)
+            ServerRouter(root: root, lspConfig: lspConfig, logger: logger, onClientStarted: { _ in })
         }
 
-        // Should complete without throwing even if all clients fail to start.
-        await router.start()
+        let client = await router.lspClient(for: "/tmp/foo.swift")
         let clients = await router.allClients()
+        XCTAssertNil(client)
         XCTAssertTrue(clients.isEmpty)
     }
 }

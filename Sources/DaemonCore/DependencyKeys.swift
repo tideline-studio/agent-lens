@@ -1,6 +1,5 @@
 import Foundation
 import LSPClient
-import LSPServerDetection
 import FileSystemWatcher
 import Linter
 import Dependencies
@@ -19,11 +18,6 @@ extension DependencyValues {
     public var linterFactory: @Sendable (Language, LinterConfig) -> (any LinterRunner)? {
         get { self[LinterFactoryKey.self] }
         set { self[LinterFactoryKey.self] = newValue }
-    }
-
-    public var lspServerDetection: any LSPServerDetection {
-        get { self[LSPServerDetectionKey.self] }
-        set { self[LSPServerDetectionKey.self] = newValue }
     }
 
     public var fileSystemWatcher: any FileSystemWatcher {
@@ -60,19 +54,8 @@ private enum LinterFactoryKey: DependencyKey {
     static let testValue: @Sendable (Language, LinterConfig) -> (any LinterRunner)? = { _, _ in nil }
 }
 
-private enum LSPServerDetectionKey: DependencyKey {
-    static let liveValue: any LSPServerDetection = DefaultLSPServerDetection()
-    static let testValue: any LSPServerDetection = EmptyDetection()
-}
-
 private enum FileSystemWatcherKey: DependencyKey {
     static let liveValue: any FileSystemWatcher = FSEventsWatcher()
     static let testValue: any FileSystemWatcher = NoOpWatcher()
 }
 
-/// Test default: no servers detected.
-private struct EmptyDetection: LSPServerDetection, Sendable {
-    func detect(root: URL) async throws -> DetectionResult {
-        DetectionResult(lspServers: [])
-    }
-}
