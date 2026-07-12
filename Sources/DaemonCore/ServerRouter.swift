@@ -76,7 +76,16 @@ public actor ServerRouter {
         // caller that enters between now and task completion joins this task.
         let task = Task<(any LSPClient)?, Never> {
             do {
-                let client = try await factory(config)
+                let configWithRoot = ServerConfig(
+                    serverID: config.serverID,
+                    language: config.language,
+                    executable: config.executable,
+                    args: config.args,
+                    env: config.env,
+                    initializationOptions: config.initializationOptions,
+                    workingDirectory: root
+                )
+                let client = try await factory(configWithRoot)
                 try? await client.initialize(rootURI: root.absoluteString)
                 await onClientStarted(client)
                 return client
