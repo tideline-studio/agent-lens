@@ -20,11 +20,11 @@ public actor ServerRouter {
     // In-flight starts — stored synchronously before any await so concurrent
     // callers for the same language join the same task instead of double-starting.
     private var startTasks: [Language: Task<(any LSPClient)?, Never>] = [:]
+    private var isStopped = false
 
     private static let defaults: [Language: ServerConfig] = [
         .swift:      ServerConfig(serverID: "sourcekit-lsp",               language: .swift,      executable: "sourcekit-lsp"),
         .typescript: ServerConfig(serverID: "typescript-language-server",  language: .typescript, executable: "typescript-language-server", args: ["--stdio"]),
-        .javascript: ServerConfig(serverID: "typescript-language-server",  language: .javascript, executable: "typescript-language-server", args: ["--stdio"]),
         .python:     ServerConfig(serverID: "pyright-langserver",          language: .python,     executable: "pyright-langserver",         args: ["--stdio"]),
         .go:         ServerConfig(serverID: "gopls",                       language: .go,         executable: "gopls"),
         .rust:       ServerConfig(serverID: "rust-analyzer",               language: .rust,       executable: "rust-analyzer"),
@@ -86,7 +86,11 @@ public actor ServerRouter {
                     workingDirectory: root
                 )
                 let client = try await factory(configWithRoot)
-                try? await client.initialize(rootURI: root.absoluteString)
+                do {
+                    try await client.initialize(rootURI: root.absoluteString)
+                } catch {
+                    logger.warning("LSP handshake failed for \(langName): \(error)")
+                }
                 await onClientStarted(client)
                 return client
             } catch {
@@ -98,11 +102,12 @@ public actor ServerRouter {
 
         let client = await task.value
         startTasks.removeValue(forKey: language)
-        if let client {
+        // If stop() ran while we were awaiting, it already captured this task in its
+        // inflight set and will shut down the client — don't store or return it.
+        if let client, !isStopped {
             clients[language] = client
         }
-        // Evict on failure so the next diagnose retries (binary may appear on PATH later).
-        return client
+        return isStopped ? nil : client
     }
 
     private func configForLanguage(_ language: Language) -> ServerConfig? {
@@ -123,9 +128,18 @@ public actor ServerRouter {
         let running  = Array(clients.values)
         startTasks = [:]
         clients    = [:]
+        isStopped  = true
         inflight.forEach { $0.cancel() }
+        // Await in-flight starts so any client the factory already returned is shut down,
+        // not leaked. clientForLanguage checks isStopped after its own await and skips
+        // the store, so there is no double-shutdown with a concurrent caller.
         await withTaskGroup(of: Void.self) { group in
-            for client in running { group.addTask { await client.shutdown() } }
+            for task in inflight {
+                group.addTask { if let c = await task.value { await c.shutdown() } }
+            }
+            for client in running {
+                group.addTask { await client.shutdown() }
+            }
         }
     }
 }

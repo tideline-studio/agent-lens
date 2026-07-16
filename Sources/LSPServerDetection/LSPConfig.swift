@@ -4,9 +4,9 @@ import LSPClient
 /// User-declared LSP server selection, read from the project-root `.alens.json` —
 /// the same file linters use, under the sibling `lspServers` key.
 ///
-/// Presence of `lspServers` fully replaces marker-based detection: the daemon launches
-/// exactly the servers listed, nothing more. Absence of the key falls back to scanning
-/// project markers (`Package.swift`, `tsconfig.json`, …). This mirrors `LinterConfig` —
+/// Presence of `lspServers` overrides the built-in defaults: the daemon launches
+/// exactly the servers listed, nothing more. Absence of the key falls back to the
+/// built-in language defaults. This mirrors `LinterConfig` —
 /// each model decodes only its own top-level key and ignores the other's, so the two share
 /// one file without coupling.
 public struct LSPConfig: Codable, Sendable {
@@ -43,7 +43,7 @@ public struct LSPConfig: Codable, Sendable {
 
     /// Loads the `lspServers` section of `.alens.json` from the project root.
     /// Returns nil when the file is absent OR carries no `lspServers` key — both mean
-    /// "fall back to marker detection". A present-but-empty `{}` decodes to an empty,
+    /// "use built-in defaults". A present-but-empty `{}` decodes to an empty,
     /// non-nil config: a deliberate "run no servers".
     public static func load(from root: URL) -> LSPConfig? {
         let url = root.appendingPathComponent(".alens.json")

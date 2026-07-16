@@ -159,6 +159,25 @@ final class ServerRouterTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
     }
 
+    func testClientLaunchedWithProjectRootAsWorkingDirectory() async throws {
+        let lspConfig = LSPConfig(lspServers: [
+            "swift": LSPConfig.ServerSpec(command: "sourcekit-lsp"),
+        ])
+        let capturedConfig = CapturedConfigBox()
+        let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
+            await capturedConfig.set(config)
+            return MockLSPClient(serverID: config.serverID)
+        }
+        let router = withDependencies { $0.lspClientFactory = factory } operation: {
+            ServerRouter(root: root, lspConfig: lspConfig, logger: logger, onClientStarted: { _ in })
+        }
+
+        _ = await router.lspClient(for: "/tmp/foo.swift")
+
+        let captured = await capturedConfig.get()
+        XCTAssertEqual(captured?.workingDirectory, root)
+    }
+
     func testFactoryFailureReturnsNilWithoutThrowing() async throws {
         let lspConfig = LSPConfig(lspServers: [
             "swift": LSPConfig.ServerSpec(command: "/nonexistent"),
@@ -188,4 +207,10 @@ private actor MockClientBox {
     private var value: MockLSPClient?
     func set(_ m: MockLSPClient) { value = m }
     func get() -> MockLSPClient? { value }
+}
+
+private actor CapturedConfigBox {
+    private var value: ServerConfig?
+    func set(_ c: ServerConfig) { value = c }
+    func get() -> ServerConfig? { value }
 }
