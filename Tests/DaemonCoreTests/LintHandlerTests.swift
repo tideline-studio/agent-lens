@@ -2,7 +2,6 @@ import XCTest
 import Foundation
 import IPC
 import LSPClient
-import LSPServerDetection
 import Linter
 import DaemonCore
 import Dependencies
@@ -21,20 +20,7 @@ private struct MockLinterRunner: LinterRunner, Sendable {
 // MARK: - Helpers
 
 private func lintDispatch(core: DaemonCore, command: Command) async -> ResponseResult {
-    let box = LintResultBox()
-    let handle = RequestHandle(
-        id: UUID().uuidString,
-        receivedAt: ContinuousClock().now,
-        command: command
-    ) { result in await box.set(result) }
-    await core.dispatch(handle)
-    return await box.get()!
-}
-
-private actor LintResultBox {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
+    await core.dispatch(Request(command: command))
 }
 
 private func makeLintCore(root: URL, factory: @escaping @Sendable (Language, LinterConfig) -> (any LinterRunner)?) -> DaemonCore {

@@ -6,21 +6,8 @@ import Dependencies
 
 // MARK: - Helpers (file-level so async let can capture them without non-Sendable self)
 
-private actor ResultBox {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
-}
-
 private func daemonDispatch(core: DaemonCore, command: Command) async -> ResponseResult {
-    let box = ResultBox()
-    let handle = RequestHandle(
-        id: UUID().uuidString,
-        receivedAt: ContinuousClock().now,
-        command: command
-    ) { result in await box.set(result) }
-    await core.dispatch(handle)
-    return await box.get()!
+    await core.dispatch(Request(command: command))
 }
 
 // MARK: - Tests

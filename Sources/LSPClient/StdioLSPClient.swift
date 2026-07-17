@@ -1,5 +1,6 @@
 import Foundation
 import IPC
+import System
 import Subprocess
 import JSONRPC
 import LanguageServerProtocol
@@ -89,6 +90,7 @@ public actor StdioLSPClient: LSPClient {
         await client.startEventLoop()
         await client.spawn(
             executable: config.executable, args: config.args, env: config.env,
+            workingDirectory: config.workingDirectory,
             outStream: outStream, inboundCont: inboundCont
         )
         return client
@@ -132,6 +134,7 @@ public actor StdioLSPClient: LSPClient {
 
     private func spawn(
         executable: String, args: [String], env: [String: String],
+        workingDirectory: URL?,
         outStream: AsyncStream<[UInt8]>, inboundCont: AsyncStream<Data>.Continuation
     ) {
         let environment: Environment = env.isEmpty
@@ -139,6 +142,7 @@ public actor StdioLSPClient: LSPClient {
             : .inherit.updating(Dictionary(
                 uniqueKeysWithValues: env.map { (Environment.Key(stringLiteral: $0.key), Optional($0.value)) }
             ))
+        let cwd = workingDirectory.map { FilePath($0.path) }
 
         runTask = Task { [weak self] in
             do {
@@ -146,6 +150,7 @@ public actor StdioLSPClient: LSPClient {
                     .name(executable),
                     arguments: Arguments(args),
                     environment: environment,
+                    workingDirectory: cwd,
                     input: .inputWriter,
                     output: .sequence,
                     error: .discarded

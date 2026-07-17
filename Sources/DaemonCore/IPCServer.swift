@@ -110,8 +110,6 @@ public final class IPCServer: Sendable {
                     do {
                         request = try decodeFrame(Request.self, from: &frame)
                     } catch {
-                        // Frame extracted but body wasn't a valid Request; the stream is
-                        // still aligned, so keep serving rather than dropping the connection.
                         logger.debug("dropping undecodable frame: \(error)")
                         continue
                     }
@@ -125,22 +123,9 @@ public final class IPCServer: Sendable {
                         continue
                     }
 
-                    let handle = RequestHandle(
-                        id: request.id,
-                        receivedAt: ContinuousClock().now,
-                        command: request.command
-                    ) { result in
-                        let resp = Response(id: request.id, result: result)
-                        // Write the reply before dispatch returns, so a command that shuts
-                        // the daemon down afterward (stop/idle) can't race the response out.
-                        try? await outbound.write(encodeFrame(resp, allocator: ByteBufferAllocator()))
-                    }
-                    await dispatcher.dispatch(handle)
+                    let result = await dispatcher.dispatch(request)
+                    try await outbound.write(encodeFrame(Response(id: request.id, result: result), allocator: ByteBufferAllocator()))
 
-                    // stop triggers process shutdown. Break so executeThenClose closes
-                    // this connection gracefully — flushing the ack we just wrote — before
-                    // the daemon exits. Otherwise exit() can race the flush and the client
-                    // sees a closed connection instead of the ack.
                     if case .stop = request.command { break }
                 }
             }

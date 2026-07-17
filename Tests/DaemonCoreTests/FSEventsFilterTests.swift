@@ -2,7 +2,6 @@ import XCTest
 import Foundation
 import IPC
 import LSPClient
-import LSPServerDetection
 import FileSystemWatcher
 import DaemonCore
 import Dependencies
@@ -44,21 +43,13 @@ final actor FilterMockClient: LSPClient {
 // MARK: - Helpers
 
 private func makeWatchCore(root: URL, client: FilterMockClient, watcher: FakeFileSystemWatcher) -> DaemonCore {
-    let serverID = client.serverID
-    let config = ServerConfig(serverID: serverID, language: .swift, executable: "sourcekit-lsp")
     return withDependencies {
-        $0.lspServerDetection = FSFixedDetection(result: DetectionResult(lspServers: [config]))
         $0.lspClientFactory   = { [client] _ in client }
         $0.fileSystemWatcher  = watcher
         $0.fileSystem         = FileSystem(contents: { _ in Data() }, stat: { _ in FileStat(mtimeNs: 0, size: 0) })
     } operation: {
         DaemonCore(root: root, logger: .init(label: "test"))
     }
-}
-
-private struct FSFixedDetection: LSPServerDetection, Sendable {
-    let result: DetectionResult
-    func detect(root: URL) async throws -> DetectionResult { result }
 }
 
 // MARK: - Tests
@@ -83,6 +74,12 @@ final class FSEventsFilterTests: XCTestCase {
         let core = makeWatchCore(root: root, client: client, watcher: watcher)
         try await core.start()
 
+        // Trigger lazy start so the client's event stream is subscribed.
+        _ = await core.dispatch(Request(command: .diagnose(
+            files: [root.appendingPathComponent("_trigger.swift").path], timeoutSeconds: 1
+        )))
+        try await Task.sleep(for: .milliseconds(50))
+
         // Register a glob that would match .swift files.
         await client.sendServerEvent(.registerWatchedFiles(id: "r1", globs: ["**/*.swift"]))
         try await Task.sleep(for: .milliseconds(50))  // let server-event task process
@@ -102,6 +99,12 @@ final class FSEventsFilterTests: XCTestCase {
         let core = makeWatchCore(root: root, client: client, watcher: watcher)
         try await core.start()
 
+        // Trigger lazy start so the client's event stream is subscribed.
+        _ = await core.dispatch(Request(command: .diagnose(
+            files: [root.appendingPathComponent("_trigger.swift").path], timeoutSeconds: 1
+        )))
+        try await Task.sleep(for: .milliseconds(50))
+
         await client.sendServerEvent(.registerWatchedFiles(id: "r1", globs: ["**/Package.swift"]))
         try await Task.sleep(for: .milliseconds(50))
 
@@ -120,19 +123,18 @@ final class FSEventsFilterTests: XCTestCase {
         let core = makeWatchCore(root: root, client: client, watcher: watcher)
         try await core.start()
 
+        // Trigger lazy start so the client's event stream is subscribed.
+        _ = await core.dispatch(Request(command: .diagnose(
+            files: [root.appendingPathComponent("_trigger.swift").path], timeoutSeconds: 1
+        )))
+        try await Task.sleep(for: .milliseconds(50))
+
         await client.sendServerEvent(.registerWatchedFiles(id: "r1", globs: ["**/*.swift"]))
         try await Task.sleep(for: .milliseconds(50))
 
-        // Simulate the file being already-open via FilesState.
-        // We dispatch a diagnose command so DaemonCore records the file as open.
+        // Diagnose Foo.swift so the client tracks it as open.
         let path = root.appendingPathComponent("Foo.swift").path
-        let box = FSResultBox()
-        let handle = RequestHandle(
-            id: "1", receivedAt: ContinuousClock().now,
-            command: .diagnose(files: [path], timeoutSeconds: 1)
-        ) { r in await box.set(r) }
-        await core.dispatch(handle)
-        _ = await box.get()
+        _ = await core.dispatch(Request(command: .diagnose(files: [path], timeoutSeconds: 1)))
 
         // Now emit an FSEvents event for the same file.
         await watcher.emit(FileEvent(path: path, kind: .modified))
@@ -147,6 +149,12 @@ final class FSEventsFilterTests: XCTestCase {
         let client = FilterMockClient(serverID: "sourcekit-lsp")
         let core = makeWatchCore(root: root, client: client, watcher: watcher)
         try await core.start()
+
+        // Trigger lazy start so the client's event stream is subscribed.
+        _ = await core.dispatch(Request(command: .diagnose(
+            files: [root.appendingPathComponent("_trigger.swift").path], timeoutSeconds: 1
+        )))
+        try await Task.sleep(for: .milliseconds(50))
 
         // Register then immediately unregister.
         await client.sendServerEvent(.registerWatchedFiles(id: "r1", globs: ["**/*.swift"]))
@@ -163,8 +171,3 @@ final class FSEventsFilterTests: XCTestCase {
     }
 }
 
-private actor FSResultBox {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
-}

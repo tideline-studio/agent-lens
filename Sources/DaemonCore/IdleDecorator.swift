@@ -36,21 +36,22 @@ public actor IdleDecorator: CoreProtocol {
         try await inner.start()
     }
 
-    public func dispatch(_ handle: RequestHandle) async {
+    public func dispatch(_ request: Request) async -> ResponseResult {
         activityGeneration += 1
 
-        switch handle.command {
+        switch request.command {
         case .start(let idleSecs, _):
             idleSeconds = idleSecs
             startIdleLoop()
-            await inner.dispatch(handle)
+            return await inner.dispatch(request)
 
         case .stop:
-            await inner.dispatch(handle)
+            let result = await inner.dispatch(request)
             triggerShutdown(.stop)
+            return result
 
         default:
-            await inner.dispatch(handle)
+            return await inner.dispatch(request)
         }
     }
 

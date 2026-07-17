@@ -2,7 +2,6 @@ import XCTest
 import Foundation
 import IPC
 import LSPClient
-import LSPServerDetection
 import DaemonCore
 import Dependencies
 
@@ -50,12 +49,7 @@ private func makeDiagnosticCore(
     client: DiagnoseMockClient,
     fileSystem: FileSystem
 ) -> DaemonCore {
-    let serverID = client.serverID
-    let config = ServerConfig(serverID: serverID, language: .swift, executable: "sourcekit-lsp")
     return withDependencies {
-        $0.lspServerDetection = FixedLSPDetection(
-            result: DetectionResult(lspServers: [config])
-        )
         $0.lspClientFactory = { [client] _ in client }
         $0.fileSystem = fileSystem
     } operation: {
@@ -64,25 +58,7 @@ private func makeDiagnosticCore(
 }
 
 private func dispatch(core: DaemonCore, command: Command) async -> ResponseResult {
-    let box = DiagnoseResultBox()
-    let handle = RequestHandle(
-        id: UUID().uuidString,
-        receivedAt: ContinuousClock().now,
-        command: command
-    ) { result in await box.set(result) }
-    await core.dispatch(handle)
-    return await box.get()!
-}
-
-private actor DiagnoseResultBox {
-    private var value: ResponseResult?
-    func set(_ v: ResponseResult) { value = v }
-    func get() -> ResponseResult? { value }
-}
-
-private struct FixedLSPDetection: LSPServerDetection, Sendable {
-    let result: DetectionResult
-    func detect(root: URL) async throws -> DetectionResult { result }
+    await core.dispatch(Request(command: command))
 }
 
 // MARK: - Tests

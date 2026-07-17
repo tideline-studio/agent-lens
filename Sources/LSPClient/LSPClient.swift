@@ -96,6 +96,9 @@ public struct ServerConfig: Sendable {
     public let args: [String]
     public let env: [String: String]
     public let initializationOptions: JSONValue?
+    /// Working directory for the server process. When set, the server is launched
+    /// from this directory so it can find project-local files like `buildServer.json`.
+    public let workingDirectory: URL?
 
     public init(
         serverID: ServerID,
@@ -103,7 +106,8 @@ public struct ServerConfig: Sendable {
         executable: String,
         args: [String] = [],
         env: [String: String] = [:],
-        initializationOptions: JSONValue? = nil
+        initializationOptions: JSONValue? = nil,
+        workingDirectory: URL? = nil
     ) {
         self.serverID = serverID
         self.language = language
@@ -111,5 +115,6 @@ public struct ServerConfig: Sendable {
         self.args = args
         self.env = env
         self.initializationOptions = initializationOptions
+        self.workingDirectory = workingDirectory
     }
 }
