@@ -1,7 +1,7 @@
-import XCTest
 import Foundation
 import LSPClient
 import LSPServerDetection
+import XCTest
 
 final class LSPServerDetectionTests: XCTestCase {
 

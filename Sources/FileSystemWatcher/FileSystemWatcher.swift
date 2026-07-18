@@ -30,4 +30,3 @@ public struct NoOpWatcher: FileSystemWatcher, Sendable {
     public func start(root: URL, sink: @Sendable @escaping (FileEvent) async -> Void) async throws {}
     public func stop() async {}
 }
-

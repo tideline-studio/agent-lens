@@ -5,6 +5,6 @@ let package = Package(
     name: "swift-fixture",
     targets: [
         .target(name: "Greeter", path: "Sources/Greeter"),
-        .executableTarget(name: "App", dependencies: ["Greeter"], path: "Sources/App"),
+        .executableTarget(name: "App", dependencies: ["Greeter"], path: "Sources/App")
     ]
 )

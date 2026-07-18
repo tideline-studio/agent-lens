@@ -55,7 +55,7 @@ public final class FSEventsWatcher: FileSystemWatcher, @unchecked Sendable {
     }
 }
 
-fileprivate final class FSEventsSinkBox: @unchecked Sendable {
+private final class FSEventsSinkBox: @unchecked Sendable {
     let sink: @Sendable (FileEvent) async -> Void
     init(sink: @Sendable @escaping (FileEvent) async -> Void) { self.sink = sink }
 }
@@ -67,12 +67,16 @@ private let fsEventsCallback: FSEventStreamCallback = { _, clientInfo, numEvents
     let flags = UnsafeBufferPointer(start: eventFlags, count: numEvents)
 
     for i in 0..<numEvents {
-        let path = paths[i] as! String
+        guard let path = paths[i] as? String else { continue }
         let f = flags[i]
         let kind: FileEvent.Kind
-        if f & UInt32(kFSEventStreamEventFlagItemCreated) != 0 { kind = .created }
-        else if f & UInt32(kFSEventStreamEventFlagItemRemoved) != 0 { kind = .deleted }
-        else { kind = .modified }
+        if f & UInt32(kFSEventStreamEventFlagItemCreated) != 0 {
+            kind = .created
+        } else if f & UInt32(kFSEventStreamEventFlagItemRemoved) != 0 {
+            kind = .deleted
+        } else {
+            kind = .modified
+        }
         let event = FileEvent(path: path, kind: kind)
         Task { await box.sink(event) }
     }

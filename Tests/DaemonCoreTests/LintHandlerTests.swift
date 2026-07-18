@@ -1,10 +1,10 @@
-import XCTest
-import Foundation
-import IPC
-import LSPClient
-import Linter
 import DaemonCore
 import Dependencies
+import Foundation
+import IPC
+import Linter
+import LSPClient
+import XCTest
 
 // MARK: - MockLinterRunner
 

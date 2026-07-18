@@ -1,5 +1,5 @@
-import Foundation
 import FileSystemWatcher
+import Foundation
 
 /// Drives FSEvents tests by emitting synthetic events on demand.
 actor FakeFileSystemWatcher: FileSystemWatcher {

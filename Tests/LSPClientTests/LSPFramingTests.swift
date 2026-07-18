@@ -1,6 +1,6 @@
-import XCTest
 import Foundation
 import LSPClient
+import XCTest
 
 /// Content-Length framing is the one piece of transport logic with real edge cases —
 /// partial reads, coalesced messages, headers/bodies split across chunks — and it's only

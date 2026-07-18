@@ -1,9 +1,9 @@
+import Dependencies
 import Foundation
 import IPC
+import Logging
 import LSPClient
 import LSPServerDetection
-import Dependencies
-import Logging
 
 public actor ServerRouter {
     @Dependency(\.lspClientFactory) private var lspClientFactory
@@ -23,11 +23,11 @@ public actor ServerRouter {
     private var isStopped = false
 
     private static let defaults: [Language: ServerConfig] = [
-        .swift:      ServerConfig(serverID: "sourcekit-lsp",               language: .swift,      executable: "sourcekit-lsp"),
-        .typescript: ServerConfig(serverID: "typescript-language-server",  language: .typescript, executable: "typescript-language-server", args: ["--stdio"]),
-        .python:     ServerConfig(serverID: "pyright-langserver",          language: .python,     executable: "pyright-langserver",         args: ["--stdio"]),
-        .go:         ServerConfig(serverID: "gopls",                       language: .go,         executable: "gopls"),
-        .rust:       ServerConfig(serverID: "rust-analyzer",               language: .rust,       executable: "rust-analyzer"),
+        .swift: ServerConfig(serverID: "sourcekit-lsp", language: .swift, executable: "sourcekit-lsp"),
+        .typescript: ServerConfig(serverID: "typescript-language-server", language: .typescript, executable: "typescript-language-server", args: ["--stdio"]),
+        .python: ServerConfig(serverID: "pyright-langserver", language: .python, executable: "pyright-langserver", args: ["--stdio"]),
+        .go: ServerConfig(serverID: "gopls", language: .go, executable: "gopls"),
+        .rust: ServerConfig(serverID: "rust-analyzer", language: .rust, executable: "rust-analyzer")
     ]
 
     public init(

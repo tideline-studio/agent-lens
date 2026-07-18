@@ -1,9 +1,9 @@
-import XCTest
-import Foundation
-import IPC
-import Dependencies
 import Clocks
 @testable import DaemonCore
+import Dependencies
+import Foundation
+import IPC
+import XCTest
 
 // MARK: - Helpers
 

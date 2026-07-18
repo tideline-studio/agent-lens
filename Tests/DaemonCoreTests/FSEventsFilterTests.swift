@@ -1,10 +1,10 @@
-import XCTest
+import DaemonCore
+import Dependencies
+import FileSystemWatcher
 import Foundation
 import IPC
 import LSPClient
-import FileSystemWatcher
-import DaemonCore
-import Dependencies
+import XCTest
 
 // MARK: - FilterMockClient
 
@@ -170,4 +170,3 @@ final class FSEventsFilterTests: XCTestCase {
         XCTAssertTrue(calls.isEmpty, "after unregister, no events should dispatch")
     }
 }
-

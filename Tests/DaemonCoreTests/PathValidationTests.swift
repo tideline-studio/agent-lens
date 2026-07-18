@@ -1,6 +1,6 @@
-import XCTest
-import Foundation
 @testable import DaemonCore
+import Foundation
+import XCTest
 
 final class PathValidationTests: XCTestCase {
 

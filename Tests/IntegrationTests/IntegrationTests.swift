@@ -1,6 +1,6 @@
-import XCTest
 import Foundation
 import IPC
+import XCTest
 
 // MARK: - Helpers
 
@@ -140,7 +140,7 @@ final class IntegrationTests: XCTestCase {
     func testDiagnoseInsideRootReturnsDiagnoseResult() throws {
         let path = root.appendingPathComponent("Sources/App/main.swift").path
         let resp = try send(.diagnose(files: [path], timeoutSeconds: 5), sockPath: sock)
-        guard case .ok(.diagnose(_)) = resp.result else {
+        guard case .ok(.diagnose) = resp.result else {
             XCTFail("expected .ok(.diagnose), got \(resp.result)"); return
         }
     }
@@ -148,7 +148,7 @@ final class IntegrationTests: XCTestCase {
     func testLintInsideRootReturnsLintResult() throws {
         let path = root.appendingPathComponent("Sources/App/main.swift").path
         let resp = try send(.lint(files: [path]), sockPath: sock)
-        guard case .ok(.lint(_)) = resp.result else {
+        guard case .ok(.lint) = resp.result else {
             XCTFail("expected .ok(.lint), got \(resp.result)"); return
         }
     }
@@ -293,7 +293,7 @@ final class TypeScriptFixtureTests: XCTestCase {
     func testDiagnoseTypeScriptFileReturnsDiagnoseResult() throws {
         let path = root.appendingPathComponent("index.ts").path
         let resp = try send(.diagnose(files: [path], timeoutSeconds: 5), sockPath: sock)
-        guard case .ok(.diagnose(_)) = resp.result else {
+        guard case .ok(.diagnose) = resp.result else {
             XCTFail("expected .ok(.diagnose), got \(resp.result)"); return
         }
     }
@@ -301,7 +301,7 @@ final class TypeScriptFixtureTests: XCTestCase {
     func testLintTypeScriptFileReturnsLintResult() throws {
         let path = root.appendingPathComponent("index.ts").path
         let resp = try send(.lint(files: [path]), sockPath: sock)
-        guard case .ok(.lint(_)) = resp.result else {
+        guard case .ok(.lint) = resp.result else {
             XCTFail("expected .ok(.lint), got \(resp.result)"); return
         }
     }
@@ -367,7 +367,7 @@ final class PythonFixtureTests: XCTestCase {
     func testDiagnosePythonFileReturnsDiagnoseResult() throws {
         let path = root.appendingPathComponent("src/main.py").path
         let resp = try send(.diagnose(files: [path], timeoutSeconds: 5), sockPath: sock)
-        guard case .ok(.diagnose(_)) = resp.result else {
+        guard case .ok(.diagnose) = resp.result else {
             XCTFail("expected .ok(.diagnose), got \(resp.result)"); return
         }
     }
@@ -375,7 +375,7 @@ final class PythonFixtureTests: XCTestCase {
     func testLintPythonFileReturnsLintResult() throws {
         let path = root.appendingPathComponent("src/main.py").path
         let resp = try send(.lint(files: [path]), sockPath: sock)
-        guard case .ok(.lint(_)) = resp.result else {
+        guard case .ok(.lint) = resp.result else {
             XCTFail("expected .ok(.lint), got \(resp.result)"); return
         }
     }

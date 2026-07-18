@@ -1,7 +1,7 @@
+import Dependencies
 import Foundation
 import IPC
 import LSPClient
-import Dependencies
 
 /// Single out-of-process linter runner driven by a LinterConfig.LinterSpec.
 /// Returns the raw stdout from the linter process — parsing is left to the consumer.

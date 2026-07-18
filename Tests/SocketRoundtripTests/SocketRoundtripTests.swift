@@ -65,7 +65,7 @@ final class SocketRoundtripTests: XCTestCase {
         // File must be within the daemon root for the request to succeed.
         let path = uniqueDir + "/a.swift"
         let resp = try send(.diagnose(files: [path], timeoutSeconds: 5))
-        guard case .ok(.diagnose(_)) = resp.result else {
+        guard case .ok(.diagnose) = resp.result else {
             XCTFail("expected .ok(.diagnose), got \(resp.result)"); return
         }
     }
@@ -82,7 +82,7 @@ final class SocketRoundtripTests: XCTestCase {
     func testLintWithPathInsideRootReturnsLintResult() throws {
         let path = uniqueDir + "/a.ts"
         let resp = try send(.lint(files: [path]))
-        guard case .ok(.lint(_)) = resp.result else {
+        guard case .ok(.lint) = resp.result else {
             XCTFail("expected .ok(.lint), got \(resp.result)"); return
         }
     }
@@ -111,7 +111,7 @@ final class SocketRoundtripTests: XCTestCase {
         defer { Darwin.close(fd) }
         // Hand-craft a frame with an unsupported protocol version. Request's init
         // forces the current version, so we frame the raw JSON ourselves.
-        let badJSON = #"{"v":999,"id":"bad","command":{"type":"status"}}"#.data(using: .utf8)!
+        let badJSON = Data(#"{"v":999,"id":"bad","command":{"type":"status"}}"#.utf8)
         writeRawFrame(badJSON, fd: fd)
         let resp = try readFrame(Response.self, fd: fd)
         if case .err(let e) = resp.result {

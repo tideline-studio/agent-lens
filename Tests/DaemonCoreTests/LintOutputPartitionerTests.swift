@@ -1,6 +1,6 @@
-import XCTest
 import Foundation
 @testable import Linter
+import XCTest
 
 /// The partitioner is what makes batching safe: one linter process for many files, then
 /// results split back per file. These cover the real reporter shapes we ship defaults for.

@@ -1,7 +1,7 @@
 import ArgumentParser
+import DaemonCore
 import Foundation
 import IPC
-import DaemonCore
 import Logging
 
 @main
@@ -32,8 +32,7 @@ struct Alensd: AsyncParsableCommand {
         // The IPC socket comes up in server.run() below so agents can connect
         // immediately; status will show 'starting' until detection completes.
         Task {
-            do { try await decorator.start() }
-            catch { logger.error("LSP startup failed: \(error)") }
+            do { try await decorator.start() } catch { logger.error("LSP startup failed: \(error)") }
         }
 
         // On stop/idle, close the listener and let run() drain in-flight connections

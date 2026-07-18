@@ -1,9 +1,9 @@
-import XCTest
+import DaemonCore
+import Dependencies
 import Foundation
 import IPC
 import LSPClient
-import DaemonCore
-import Dependencies
+import XCTest
 
 // MARK: - DiagnoseMockClient
 

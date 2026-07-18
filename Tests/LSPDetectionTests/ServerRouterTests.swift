@@ -1,11 +1,11 @@
-import XCTest
-import Foundation
-import IPC
-import LSPClient
-import LSPServerDetection
 import DaemonCore
 import Dependencies
+import Foundation
+import IPC
 import Logging
+import LSPClient
+import LSPServerDetection
+import XCTest
 
 // MARK: - MockLSPClient
 
@@ -81,7 +81,7 @@ final class ServerRouterTests: XCTestCase {
         let collector = IDCollector()
         let lspConfig = LSPConfig(lspServers: [
             "swift": LSPConfig.ServerSpec(command: "sk-lsp"),
-            "typescript": LSPConfig.ServerSpec(command: "ts-lsp"),
+            "typescript": LSPConfig.ServerSpec(command: "ts-lsp")
         ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
             await collector.add(config.serverID)
@@ -103,7 +103,7 @@ final class ServerRouterTests: XCTestCase {
     func testLspClientForPathReturnsCorrectClient() async throws {
         // Explicit config: only swift. Python has no entry → nil.
         let lspConfig = LSPConfig(lspServers: [
-            "swift": LSPConfig.ServerSpec(command: "sourcekit-lsp"),
+            "swift": LSPConfig.ServerSpec(command: "sourcekit-lsp")
         ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
             MockLSPClient(serverID: config.serverID)
@@ -137,7 +137,7 @@ final class ServerRouterTests: XCTestCase {
 
     func testStopShutdownsAllClients() async throws {
         let lspConfig = LSPConfig(lspServers: [
-            "swift": LSPConfig.ServerSpec(command: "sk-lsp"),
+            "swift": LSPConfig.ServerSpec(command: "sk-lsp")
         ])
         let box = MockClientBox()
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
@@ -161,7 +161,7 @@ final class ServerRouterTests: XCTestCase {
 
     func testClientLaunchedWithProjectRootAsWorkingDirectory() async throws {
         let lspConfig = LSPConfig(lspServers: [
-            "swift": LSPConfig.ServerSpec(command: "sourcekit-lsp"),
+            "swift": LSPConfig.ServerSpec(command: "sourcekit-lsp")
         ])
         let capturedConfig = CapturedConfigBox()
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
@@ -180,7 +180,7 @@ final class ServerRouterTests: XCTestCase {
 
     func testFactoryFailureReturnsNilWithoutThrowing() async throws {
         let lspConfig = LSPConfig(lspServers: [
-            "swift": LSPConfig.ServerSpec(command: "/nonexistent"),
+            "swift": LSPConfig.ServerSpec(command: "/nonexistent")
         ])
         let factory: @Sendable (ServerConfig) async throws -> any LSPClient = { _ in
             throw LSPClientError.processExited

@@ -73,6 +73,6 @@ public struct LinterConfig: Codable, Sendable {
             args: ["run", "--out-format", "json", "$FILE"],
             resultsKey: "Issues",
             fileField: "Pos.Filename"
-        ),
+        )
     ])
 }

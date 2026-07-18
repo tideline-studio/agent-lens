@@ -54,22 +54,22 @@ extension Command: Codable {
         switch try c.decode(String.self, forKey: .type) {
         case "start":
             self = .start(
-                idleSeconds: try c.decode(Double.self,   forKey: .idle),
-                logLevel:    try c.decode(LogLevel.self, forKey: .logLevel)
+                idleSeconds: try c.decode(Double.self, forKey: .idle),
+                logLevel: try c.decode(LogLevel.self, forKey: .logLevel)
             )
         case "stop":   self = .stop
         case "status": self = .status
         case "diagnose":
             self = .diagnose(
-                files:          try c.decode([String].self, forKey: .files),
-                timeoutSeconds: try c.decode(Double.self,   forKey: .timeout)
+                files: try c.decode([String].self, forKey: .files),
+                timeoutSeconds: try c.decode(Double.self, forKey: .timeout)
             )
         case "lint":
             self = .lint(files: try c.decode([String].self, forKey: .files))
         case "check":
             self = .check(
-                files:          try c.decode([String].self, forKey: .files),
-                timeoutSeconds: try c.decode(Double.self,   forKey: .timeout)
+                files: try c.decode([String].self, forKey: .files),
+                timeoutSeconds: try c.decode(Double.self, forKey: .timeout)
             )
         case let t:
             throw DecodingError.dataCorruptedError(
@@ -83,24 +83,24 @@ extension Command: Codable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .start(let idle, let level):
-            try c.encode("start",    forKey: .type)
-            try c.encode(idle,       forKey: .idle)
-            try c.encode(level,      forKey: .logLevel)
+            try c.encode("start", forKey: .type)
+            try c.encode(idle, forKey: .idle)
+            try c.encode(level, forKey: .logLevel)
         case .stop:
             try c.encode("stop", forKey: .type)
         case .status:
             try c.encode("status", forKey: .type)
         case .diagnose(let files, let timeout):
             try c.encode("diagnose", forKey: .type)
-            try c.encode(files,      forKey: .files)
-            try c.encode(timeout,    forKey: .timeout)
+            try c.encode(files, forKey: .files)
+            try c.encode(timeout, forKey: .timeout)
         case .lint(let files):
-            try c.encode("lint",  forKey: .type)
-            try c.encode(files,   forKey: .files)
+            try c.encode("lint", forKey: .type)
+            try c.encode(files, forKey: .files)
         case .check(let files, let timeout):
-            try c.encode("check",  forKey: .type)
-            try c.encode(files,    forKey: .files)
-            try c.encode(timeout,  forKey: .timeout)
+            try c.encode("check", forKey: .type)
+            try c.encode(files, forKey: .files)
+            try c.encode(timeout, forKey: .timeout)
         }
     }
 }
@@ -163,7 +163,7 @@ extension Payload: Codable {
         case "check":
             self = .check(
                 diagnostics: try c.decode([String: FileDiagnostics].self, forKey: .diagnostics),
-                lint:        try c.decode([String: String].self,          forKey: .lint)
+                lint: try c.decode([String: String].self, forKey: .lint)
             )
         case let t:
             throw DecodingError.dataCorruptedError(
@@ -180,17 +180,17 @@ extension Payload: Codable {
             try c.encode("ack", forKey: .type)
         case .status(let r):
             try c.encode("status", forKey: .type)
-            try c.encode(r,        forKey: .report)
+            try c.encode(r, forKey: .report)
         case .diagnose(let files):
             try c.encode("diagnose", forKey: .type)
-            try c.encode(files,      forKey: .files)
+            try c.encode(files, forKey: .files)
         case .lint(let files):
-            try c.encode("lint",  forKey: .type)
-            try c.encode(files,   forKey: .files)
+            try c.encode("lint", forKey: .type)
+            try c.encode(files, forKey: .files)
         case .check(let diagnostics, let lint):
-            try c.encode("check",      forKey: .type)
-            try c.encode(diagnostics,  forKey: .diagnostics)
-            try c.encode(lint,         forKey: .lint)
+            try c.encode("check", forKey: .type)
+            try c.encode(diagnostics, forKey: .diagnostics)
+            try c.encode(lint, forKey: .lint)
         }
     }
 }
@@ -288,7 +288,6 @@ public struct Position: Codable, Sendable, Equatable {
 public enum DiagnosticSeverity: Int, Codable, Sendable, Equatable {
     case error = 1, warning = 2, information = 3, hint = 4
 }
-
 
 public struct ErrorPayload: Codable, Sendable, Equatable {
     public let code: ErrorCode

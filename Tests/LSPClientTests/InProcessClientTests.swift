@@ -1,8 +1,8 @@
-import XCTest
 import Clocks
-import JSONRPC
 import IPC
+import JSONRPC
 @testable import LSPClient
+import XCTest
 
 /// Exercises StdioLSPClient's protocol logic over an in-process channel + MockLSPServer —
 /// no subprocess, no real stdio. Deterministic where the old FakeLSPServer tests were slow

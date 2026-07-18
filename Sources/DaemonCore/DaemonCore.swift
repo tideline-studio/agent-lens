@@ -2,10 +2,10 @@ import Dependencies
 import FileSystemWatcher
 import Foundation
 import IPC
-import LSPClient
-import LSPServerDetection
 import Linter
 import Logging
+import LSPClient
+import LSPServerDetection
 
 public actor DaemonCore: CoreProtocol {
     private let root: URL

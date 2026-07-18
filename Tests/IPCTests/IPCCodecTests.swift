@@ -1,5 +1,5 @@
-import XCTest
 import IPC
+import XCTest
 
 // Tests observable behavior: the JSON codec roundtrip and wire-format shape.
 // If a message type can't survive encode→decode it will never transit the socket correctly.
@@ -11,7 +11,7 @@ final class IPCCodecTests: XCTestCase {
     func testAllCommandVariantsRoundtrip() throws {
         let commands: [Command] = [
             .start(idleSeconds: 7200, logLevel: .info),
-            .start(idleSeconds: 30,   logLevel: .debug),
+            .start(idleSeconds: 30, logLevel: .debug),
             .stop,
             .status,
             .diagnose(files: ["/a/b.swift", "/c/d.swift"], timeoutSeconds: 5),
@@ -19,7 +19,7 @@ final class IPCCodecTests: XCTestCase {
             .lint(files: ["/x/y.ts"]),
             .lint(files: []),
             .check(files: ["/a/b.swift", "/c/d.ts"], timeoutSeconds: 5),
-            .check(files: [], timeoutSeconds: 0.5),
+            .check(files: [], timeoutSeconds: 0.5)
         ]
         for cmd in commands {
             XCTAssertEqual(try roundTrip(cmd), cmd, "roundtrip failed for \(cmd)")
@@ -63,7 +63,7 @@ final class IPCCodecTests: XCTestCase {
     }
 
     func testUnknownCommandTypeThrows() {
-        let badJSON = #"{"type":"unknown_cmd"}"#.data(using: .utf8)!
+        let badJSON = Data(#"{"type":"unknown_cmd"}"#.utf8)
         XCTAssertThrowsError(try JSONDecoder().decode(Command.self, from: badJSON))
     }
 
@@ -82,10 +82,10 @@ final class IPCCodecTests: XCTestCase {
                 diagnostics: [Diagnostic(
                     range: DiagnosticRange(
                         start: Position(line: 0, character: 0),
-                        end:   Position(line: 0, character: 5)
+                        end: Position(line: 0, character: 5)
                     ),
                     severity: .error,
-                    message:  "cannot find 'foo' in scope"
+                    message: "cannot find 'foo' in scope"
                 )],
                 readinessState: .ready,
                 stale: false
@@ -98,16 +98,16 @@ final class IPCCodecTests: XCTestCase {
                     diagnostics: [Diagnostic(
                         range: DiagnosticRange(
                             start: Position(line: 1, character: 2),
-                            end:   Position(line: 1, character: 8)
+                            end: Position(line: 1, character: 8)
                         ),
                         severity: .warning,
-                        message:  "unused variable"
+                        message: "unused variable"
                     )],
                     readinessState: .ready,
                     stale: false
                 )],
                 lint: ["foo.swift": "foo.swift:1:2: warning: trailing whitespace"]
-            ),
+            )
         ]
         for payload in payloads {
             XCTAssertEqual(try roundTrip(payload), payload, "roundtrip failed for \(payload)")
@@ -157,7 +157,7 @@ final class IPCCodecTests: XCTestCase {
     // MARK: - Version mismatch detection
 
     func testVersionFieldDecodes() throws {
-        let json = #"{"v":99,"id":"x","result":{"ok":{"type":"ack"}}}"#.data(using: .utf8)!
+        let json = Data(#"{"v":99,"id":"x","result":{"ok":{"type":"ack"}}}"#.utf8)
         let resp = try JSONDecoder().decode(Response.self, from: json)
         XCTAssertEqual(resp.v, 99)
         XCTAssertNotEqual(resp.v, protocolVersion)
@@ -167,7 +167,7 @@ final class IPCCodecTests: XCTestCase {
         let all: [ErrorCode] = [
             .noDaemon, .noServer, .serverNotReady,
             .fileNotFound, .pathOutsideRoot, .pathIsDirectory,
-            .lspError, .timeout, .versionMismatch, .internalError,
+            .lspError, .timeout, .versionMismatch, .internalError
         ]
         for code in all {
             let payload = ErrorPayload(code: code, message: "test")

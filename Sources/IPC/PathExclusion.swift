@@ -6,7 +6,7 @@ public let excludedDirectoryNames: Set<String> = [
     "node_modules", ".yarn",
     "DerivedData",
     "__pycache__", ".venv", "venv",
-    "vendor", "dist", "build",
+    "vendor", "dist", "build"
 ]
 
 /// Returns true if any path component of `path` is in `excludedDirectoryNames`.

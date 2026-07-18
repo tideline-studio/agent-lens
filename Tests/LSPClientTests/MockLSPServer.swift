@@ -127,11 +127,11 @@ final class MockLSPServer: @unchecked Sendable {
         let registration: [String: Any] = [
             "id": registrationID,
             "method": "workspace/didChangeWatchedFiles",
-            "registerOptions": ["watchers": globs.map { ["globPattern": $0] }],
+            "registerOptions": ["watchers": globs.map { ["globPattern": $0] }]
         ]
         await send([
             "jsonrpc": "2.0", "id": requestID, "method": "client/registerCapability",
-            "params": ["registrations": [registration]],
+            "params": ["registrations": [registration]]
         ])
     }
 
@@ -150,9 +150,9 @@ func mockDiagnostic(line: Int, message: String, severity: Int = 1) -> [String: A
     [
         "range": [
             "start": ["line": line, "character": 0],
-            "end": ["line": line, "character": 1],
+            "end": ["line": line, "character": 1]
         ],
         "severity": severity,
-        "message": message,
+        "message": message
     ]
 }

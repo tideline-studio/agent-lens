@@ -80,4 +80,3 @@ private func matchGlob(p: Substring, s: Substring) -> Bool {
         s = s.dropFirst()
     }
 }
-

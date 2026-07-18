@@ -1,5 +1,5 @@
-import XCTest
 import LSPClient
+import XCTest
 
 final class CircuitBreakerTests: XCTestCase {
 

@@ -1,7 +1,7 @@
 import Darwin
-import XCTest
 import Foundation
 import IPC
+import XCTest
 
 // Tests observable socket-level behavior by spawning alensd as a subprocess.
 // Covers stale-socket recovery, socket permissions, and malformed input handling.
@@ -89,7 +89,7 @@ final class IPCServerTests: XCTestCase {
 
         // A correctly framed body that isn't a valid Request: the server must drop
         // the frame and stay up, not crash or desync.
-        let garbage = "not json at all".data(using: .utf8)!
+        let garbage = Data("not json at all".utf8)
         var header = UInt32(garbage.count).bigEndian
         var frame = Data(bytes: &header, count: 4)
         frame.append(garbage)

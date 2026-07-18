@@ -1,6 +1,6 @@
-import XCTest
-import IPC
 import DaemonCore
+import IPC
+import XCTest
 
 final class WatchRegistryTests: XCTestCase {
 

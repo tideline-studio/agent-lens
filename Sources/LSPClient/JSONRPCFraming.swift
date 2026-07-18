@@ -64,11 +64,9 @@ public struct LSPFrameDecoder {
 
 private func parseContentLength(_ headerBytes: ArraySlice<UInt8>) -> Int? {
     let header = String(decoding: headerBytes, as: UTF8.self)
-    for line in header.components(separatedBy: "\r\n") {
-        if line.lowercased().hasPrefix("content-length:") {
-            let value = line.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)
-            return Int(value)
-        }
+    for line in header.components(separatedBy: "\r\n") where line.lowercased().hasPrefix("content-length:") {
+        let value = line.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)
+        return Int(value)
     }
     return nil
 }

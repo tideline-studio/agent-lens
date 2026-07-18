@@ -1,5 +1,5 @@
-import XCTest
 @testable import LSPClient
+import XCTest
 
 /// BoundedCache backs the diagnostics cache; these protect the contract that lets a
 /// long-lived daemon cache diagnostics without growing memory without bound.

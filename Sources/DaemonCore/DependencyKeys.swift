@@ -1,8 +1,8 @@
-import Foundation
-import LSPClient
-import FileSystemWatcher
-import Linter
 import Dependencies
+import FileSystemWatcher
+import Foundation
+import Linter
+import LSPClient
 
 extension DependencyValues {
     public var fileSystem: FileSystem {
@@ -41,7 +41,7 @@ private enum LSPClientFactoryKey: DependencyKey {
         try await StdioLSPClient.start(config: $0)
     }
     // Test default: no factory — tests must override with withDependencies.
-    static let testValue: @Sendable (ServerConfig) async throws -> any LSPClient = { config in
+    static let testValue: @Sendable (ServerConfig) async throws -> any LSPClient = { _ in
         throw LSPClientError.processExited
     }
 }
@@ -58,4 +58,3 @@ private enum FileSystemWatcherKey: DependencyKey {
     static let liveValue: any FileSystemWatcher = FSEventsWatcher()
     static let testValue: any FileSystemWatcher = NoOpWatcher()
 }
-

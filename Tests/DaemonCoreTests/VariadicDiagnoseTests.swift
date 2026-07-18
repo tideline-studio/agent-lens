@@ -1,9 +1,9 @@
-import XCTest
+import DaemonCore
+import Dependencies
 import Foundation
 import IPC
 import LSPClient
-import DaemonCore
-import Dependencies
+import XCTest
 
 // MARK: - Helpers (local copies; not shared across test files due to access control)
 
@@ -59,7 +59,7 @@ final class VariadicDiagnoseTests: XCTestCase {
             XCTFail("expected .diagnose, got \(result)"); return
         }
         XCTAssertNotNil(files[swiftPath], "swift file should have a result")
-        XCTAssertNotNil(files[tsPath],    "ts file should have a result")
+        XCTAssertNotNil(files[tsPath], "ts file should have a result")
         XCTAssertEqual(files.count, 2)
     }
 

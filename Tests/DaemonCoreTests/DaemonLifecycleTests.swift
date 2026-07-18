@@ -1,8 +1,8 @@
-import XCTest
+@testable import DaemonCore
+import Dependencies
 import Foundation
 import IPC
-import Dependencies
-@testable import DaemonCore
+import XCTest
 
 // MARK: - Helpers (file-level so async let can capture them without non-Sendable self)
 
@@ -53,7 +53,7 @@ final class DaemonLifecycleTests: XCTestCase {
         let core = DaemonCore(root: root, logger: .init(label: "test"))
         let path = root.appendingPathComponent("foo.swift").path
         let result = await daemonDispatch(core: core, command: .diagnose(files: [path], timeoutSeconds: 5))
-        guard case .ok(.diagnose(_)) = result else {
+        guard case .ok(.diagnose) = result else {
             XCTFail("expected .ok(.diagnose), got \(result)"); return
         }
     }
@@ -80,7 +80,7 @@ final class DaemonLifecycleTests: XCTestCase {
         let core = DaemonCore(root: root, logger: .init(label: "test"))
         let path = root.appendingPathComponent("foo.swift").path
         let result = await daemonDispatch(core: core, command: .check(files: [path], timeoutSeconds: 5))
-        guard case .ok(.check(_, _)) = result else {
+        guard case .ok(.check) = result else {
             XCTFail("expected .ok(.check), got \(result)"); return
         }
     }

@@ -1,6 +1,6 @@
-import XCTest
 import IPC
 @testable import LSPClient
+import XCTest
 
 /// DiagnosticsWaiter is the keyed demux from pushed `publishDiagnostics` to per-(uri,
 /// version) awaiters. These protect its contract: version correlation, the publish-before-

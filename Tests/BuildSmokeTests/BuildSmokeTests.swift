@@ -1,9 +1,9 @@
-import XCTest
+import DaemonCore
+import FileSystemWatcher
 import IPC
 import LSPClient
 import LSPServerDetection
-import FileSystemWatcher
-import DaemonCore
+import XCTest
 
 final class BuildSmokeTests: XCTestCase {
     func testModulesImport() {

@@ -1,9 +1,9 @@
-import XCTest
+import DaemonCore
+import Dependencies
 import Foundation
 import IPC
 import LSPClient
-import DaemonCore
-import Dependencies
+import XCTest
 
 // Re-uses MockLSPClient from ServerRouterTests — duplicated here to avoid cross-target sharing.
 private final actor StatusMockClient: LSPClient {
@@ -93,4 +93,3 @@ final class StatusReportingTests: XCTestCase {
         XCTAssertEqual(tsStatus?.readinessState, .indexing)
     }
 }
-

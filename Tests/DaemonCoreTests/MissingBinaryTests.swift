@@ -1,8 +1,8 @@
-import XCTest
-import Foundation
-import IPC
 import DaemonCore
 import Dependencies
+import Foundation
+import IPC
+import XCTest
 
 final class MissingBinaryTests: XCTestCase {
 
@@ -53,4 +53,3 @@ final class MissingBinaryTests: XCTestCase {
         XCTAssertEqual(files[path], "")
     }
 }
-

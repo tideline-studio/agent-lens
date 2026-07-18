@@ -1,5 +1,5 @@
-import Foundation
 import Dependencies
+import Foundation
 import Subprocess
 
 public enum ProcessRunnerError: Error, Sendable {

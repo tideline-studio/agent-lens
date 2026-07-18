@@ -1,10 +1,10 @@
 import Darwin
 import Foundation
-import os
-import NIOCore
-import NIOPosix
 import IPC
 import Logging
+import NIOCore
+import NIOPosix
+import os
 
 /// Server-channel handler that swallows errors raised while accepting/configuring
 /// a single connection, so one bad client can't terminate the accept loop.

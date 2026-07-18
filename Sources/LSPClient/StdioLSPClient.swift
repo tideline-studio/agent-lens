@@ -1,9 +1,9 @@
 import Foundation
 import IPC
-import System
-import Subprocess
 import JSONRPC
 import LanguageServerProtocol
+import Subprocess
+import System
 
 public enum LSPClientError: Error, Sendable {
     case serverError(code: Int?, message: String)
