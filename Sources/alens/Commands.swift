@@ -117,7 +117,7 @@ struct StatusCommand: AsyncParsableCommand {
 
 // MARK: - diagnose
 
-struct DiagnoseCommand: AsyncParsableCommand {
+struct DiagnoseCommand: FileTargetCommand {
     static let configuration = CommandConfiguration(commandName: "diagnose")
 
     @OptionGroup var global: GlobalFlags
@@ -131,14 +131,8 @@ struct DiagnoseCommand: AsyncParsableCommand {
     mutating func run() async throws {
         let root = resolveRoot(dir)
         let sockPath = socketPath(forDirectory: root)
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 
-        guard !files.isEmpty else {
-            throw ValidationError(
-                "pass one or more files to diagnose; omitting them no longer expands to the whole project"
-            )
-        }
-        let allPaths = try resolveInputs(files, cwd: cwd)
+        let allPaths = try resolvedFiles(noun: "diagnose")
         guard !allPaths.isEmpty else {
             if !global.json { print("No diagnosable files found.") }
             return
@@ -155,7 +149,7 @@ struct DiagnoseCommand: AsyncParsableCommand {
 
 // MARK: - lint
 
-struct LintCommand: AsyncParsableCommand {
+struct LintCommand: FileTargetCommand {
     static let configuration = CommandConfiguration(commandName: "lint")
 
     @OptionGroup var global: GlobalFlags
@@ -167,14 +161,8 @@ struct LintCommand: AsyncParsableCommand {
     mutating func run() async throws {
         let root = resolveRoot(dir)
         let sockPath = socketPath(forDirectory: root)
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 
-        guard !files.isEmpty else {
-            throw ValidationError(
-                "pass one or more files to lint; omitting them no longer expands to the whole project"
-            )
-        }
-        let resolved = try resolveInputs(files, cwd: cwd)
+        let resolved = try resolvedFiles(noun: "lint")
         guard !resolved.isEmpty else {
             if !global.json { print("No lintable files found.") }
             return
@@ -186,7 +174,7 @@ struct LintCommand: AsyncParsableCommand {
 
 // MARK: - check
 
-struct CheckCommand: AsyncParsableCommand {
+struct CheckCommand: FileTargetCommand {
     static let configuration = CommandConfiguration(
         commandName: "check",
         abstract: "Run diagnose and lint together in one pass."
@@ -203,14 +191,8 @@ struct CheckCommand: AsyncParsableCommand {
     mutating func run() async throws {
         let root = resolveRoot(dir)
         let sockPath = socketPath(forDirectory: root)
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 
-        guard !files.isEmpty else {
-            throw ValidationError(
-                "pass one or more files to check; omitting them no longer expands to the whole project"
-            )
-        }
-        let allPaths = try resolveInputs(files, cwd: cwd)
+        let allPaths = try resolvedFiles(noun: "check")
         guard !allPaths.isEmpty else {
             if !global.json { print("No checkable files found.") }
             return
@@ -222,25 +204,5 @@ struct CheckCommand: AsyncParsableCommand {
             try await roundTrip(command: command, socketPath: sock)
         }
         try printResponse(resp, json: global.json)
-    }
-}
-
-// MARK: - Input resolution
-
-/// Resolves CLI file args to absolute paths (relative to `cwd`). Directory args are
-/// rejected: the agent passes the specific files it wants checked, and the CLI does not
-/// expand directories — a deep walk is exactly the large-expansion failure we removed.
-func resolveInputs(_ files: [String], cwd: URL) throws -> [String] {
-    try files.map { arg in
-        let path =
-            arg.hasPrefix("/")
-            ? arg
-            : URL(fileURLWithPath: arg, relativeTo: cwd).standardizedFileURL.path
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
-            throw ValidationError(
-                "\(arg) is a directory; pass individual files (directory expansion was removed)")
-        }
-        return path
     }
 }

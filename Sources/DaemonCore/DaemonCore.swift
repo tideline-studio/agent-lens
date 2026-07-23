@@ -17,13 +17,16 @@ public actor DaemonCore: CoreProtocol {
 
     private var linterConfig: LinterConfig = .defaults
     private var serverRouter: ServerRouter?
-    private let watchRegistry = WatchRegistry()
+    private let watchCoordinator: WatchCoordinator
+    private let diagnosticsService = DiagnosticsService()
+    private let lintService = LintService()
     private let logger: Logger
 
     public init(root: URL, logger: Logger) {
         self.root = root
         self.startDate = Date()
         self.logger = logger
+        self.watchCoordinator = WatchCoordinator(logger: logger)
     }
 
     // MARK: - Startup
@@ -45,20 +48,19 @@ public actor DaemonCore: CoreProtocol {
 
         linterConfig = LinterConfig.load(from: root) ?? .defaults
 
-        let wr = watchRegistry
-        let rt = router
-        let log = logger
-        try await fileSystemWatcher.start(root: root) { [weak self] event in
-            await self?.handlePathEvent(event, watchRegistry: wr, router: rt, logger: log)
+        let coordinator = watchCoordinator
+        try await fileSystemWatcher.start(root: root) { event in
+            await coordinator.handlePathEvent(event, router: router)
         }
     }
 
     private func subscribeToEvents(from client: any LSPClient) async {
         let serverID = await client.serverID
         let events = await client.serverEvents
-        Task { [weak self] in
+        let coordinator = watchCoordinator
+        Task {
             for await event in events {
-                await self?.handleServerEvent(event, serverID: serverID)
+                await coordinator.registerServerEvent(event, serverID: serverID)
             }
         }
     }
@@ -120,201 +122,18 @@ public actor DaemonCore: CoreProtocol {
         return nil
     }
 
-    // MARK: - Diagnose
+    // MARK: - Command handlers
 
     private func computeDiagnose(
         files: [String],
         timeoutSeconds: Double
     ) async -> [String: FileDiagnostics] {
-        guard let router = serverRouter else {
-            return [:]
-        }
-
-        // Diagnose exactly the files the caller passed — no expansion, ordering, or cap.
-        // Group by language. Files whose extension maps to no language aren't
-        // diagnosable at all — report them as unsupported (not stale, which implies
-        // a result might still arrive).
-        var groups: [Language: [String]] = [:]
-        var results: [String: FileDiagnostics] = [:]
-        for path in files {
-            if let lang = Language.from(path: path) {
-                groups[lang, default: []].append(path)
-            } else {
-                results[path] = FileDiagnostics(
-                    diagnostics: [],
-                    readinessState: .unsupported,
-                    stale: false
-                )
-            }
-        }
-
-        let timeout = Duration.seconds(timeoutSeconds)
-
-        let grouped = await withTaskGroup(of: [String: FileDiagnostics].self) { tg in
-            for (_, paths) in groups {
-                guard let client = await router.lspClient(for: paths[0]) else {
-                    // No LSP client for this (supported) language — return stale so
-                    // callers know "no server" rather than getting a silent omission.
-                    tg.addTask {
-                        Dictionary(
-                            uniqueKeysWithValues: paths.map { path in
-                                (
-                                    path,
-                                    FileDiagnostics(
-                                        diagnostics: [], readinessState: .initial, stale: true)
-                                )
-                            })
-                    }
-                    continue
-                }
-                let fs = fileSystem
-                tg.addTask {
-                    await self.diagnoseGroup(
-                        client: client, paths: paths, timeout: timeout, fileSystem: fs)
-                }
-            }
-            var combined: [String: FileDiagnostics] = [:]
-            for await partial in tg { combined.merge(partial) { _, new in new } }
-            return combined
-        }
-        results.merge(grouped) { _, new in new }
-        return results
+        guard let router = serverRouter else { return [:] }
+        return await diagnosticsService.diagnose(
+            files: files, timeoutSeconds: timeoutSeconds, router: router, fileSystem: fileSystem)
     }
-
-    private func diagnoseGroup(
-        client: any LSPClient,
-        paths: [String],
-        timeout: Duration,
-        fileSystem: FileSystem
-    ) async -> [String: FileDiagnostics] {
-        // Read each file into a DocumentInput; the client owns the open/change/version
-        // decision. Files that can't be stat'd are reported stale (we never saw them).
-        var inputs: [DocumentInput] = []
-        var uriToPath: [String: String] = [:]
-        var result: [String: FileDiagnostics] = [:]
-        for path in paths {
-            guard let stat = try? fileSystem.stat(path) else {
-                result[path] = FileDiagnostics(diagnostics: [], readinessState: .ready, stale: true)
-                continue
-            }
-            let uri = "file://\(path)"
-            let text =
-                (try? fileSystem.contents(path)).map { String(data: $0, encoding: .utf8) ?? "" }
-                ?? ""
-            inputs.append(
-                DocumentInput(
-                    uri: uri, languageId: languageID(for: path), text: text,
-                    mtimeNs: stat.mtimeNs, size: stat.size
-                ))
-            uriToPath[uri] = path
-        }
-
-        let batches = await client.diagnose(inputs, timeout: timeout)
-        let readiness = await client.readinessState
-        for (uri, batch) in batches {
-            guard let path = uriToPath[uri] else { continue }
-            result[path] = FileDiagnostics(
-                diagnostics: batch.diagnostics,
-                readinessState: readiness,
-                stale: !batch.arrived
-            )
-        }
-        return result
-    }
-
-    // MARK: - Lint
 
     private func computeLint(files: [String]) async -> [String: String] {
-        let factory = linterFactory
-        let config = linterConfig
-
-        // Group by language so each linter runs once for its whole batch, not once per
-        // file. Files with no linter still get an empty result so callers see them.
-        var byLanguage: [Language: [String]] = [:]
-        var results: [String: String] = [:]
-        for path in files {
-            if let lang = Language.from(path: path), factory(lang, config) != nil {
-                byLanguage[lang, default: []].append(path)
-            } else {
-                results[path] = ""
-            }
-        }
-
-        let batched = await withTaskGroup(of: [String: String].self) { tg in
-            for (lang, paths) in byLanguage {
-                guard let linter = factory(lang, config) else { continue }
-                tg.addTask {
-                    if let out = try? await linter.lint(files: paths) { return out }
-                    return Dictionary(uniqueKeysWithValues: paths.map { ($0, "") })
-                }
-            }
-            var combined: [String: String] = [:]
-            for await partial in tg { combined.merge(partial) { _, new in new } }
-            return combined
-        }
-        results.merge(batched) { _, new in new }
-        return results
-    }
-
-    // MARK: - Server event handling
-
-    private func handleServerEvent(_ event: ServerEvent, serverID: ServerID) async {
-        switch event {
-        case .registerWatchedFiles(let id, let globs):
-            await watchRegistry.register(id, serverID: serverID, globs: globs)
-        case .unregisterWatchedFiles(let id):
-            await watchRegistry.unregister(id)
-        case .showMessage(let level, let text):
-            logger.info("[LSP:\(serverID)] \(level): \(text)")
-        case .progress:
-            break
-        }
-    }
-
-    // MARK: - FSEvents filter pipeline
-
-    private func handlePathEvent(
-        _ event: FileEvent,
-        watchRegistry: WatchRegistry,
-        router: ServerRouter,
-        logger: Logger
-    ) async {
-        let path = event.path
-
-        // 1. Drop excluded directories (.git, node_modules, .build, DerivedData).
-        guard !isExcludedPath(path) else { return }
-
-        // 2. Find interested servers via their registered watch globs.
-        let serverIDs = await watchRegistry.serversMatching(path: path)
-        guard !serverIDs.isEmpty else { return }
-
-        // 3. Open-file suppression: if an interested server already holds the file open,
-        //    its edits are handled via stat-on-demand didChange during diagnose.
-        let uri = "file://\(path)"
-        let allClients = await router.allClients()
-        for client in allClients where serverIDs.contains(await client.serverID) {
-            if await client.isOpen(uri) { return }
-        }
-
-        // 4. Dispatch didChangeWatchedFiles to each interested server.
-        let watchedEvent = WatchedFileEvent(uri: uri, kind: watchedKind(for: event.kind))
-        for client in allClients {
-            let sid = await client.serverID
-            guard serverIDs.contains(sid) else { continue }
-            try? await client.didChangeWatchedFiles([watchedEvent])
-        }
-    }
-
-    private func watchedKind(for kind: FileEvent.Kind) -> WatchedFileEvent.Kind {
-        switch kind {
-        case .created: return .created
-        case .modified: return .changed
-        case .deleted: return .deleted
-        }
-    }
-
-    private func languageID(for path: String) -> String {
-        // The LSP languageId matches the Language raw value for every supported case.
-        Language.from(path: path)?.rawValue ?? "plaintext"
+        await lintService.lint(files: files, config: linterConfig, factory: linterFactory)
     }
 }
