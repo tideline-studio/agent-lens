@@ -10,7 +10,7 @@ func resolveRoot(_ dir: String?) -> URL {
 /// Parses a human-readable duration string ("30s", "5m", "2h", "1d") into seconds.
 func parseDuration(_ str: String) throws -> Double {
     let s = str.lowercased()
-    if let n = Double(s)                           { return n }
+    if let n = Double(s) { return n }
     if s.hasSuffix("s"), let n = Double(s.dropLast()) { return n }
     if s.hasSuffix("m"), let n = Double(s.dropLast()) { return n * 60 }
     if s.hasSuffix("h"), let n = Double(s.dropLast()) { return n * 3_600 }

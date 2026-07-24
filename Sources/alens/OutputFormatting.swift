@@ -79,7 +79,7 @@ private func severityLabel(_ s: DiagnosticSeverity) -> String {
 }
 
 private func formatDuration(_ s: Double) -> String {
-    if s < 60   { return String(format: "%.1fs", s) }
+    if s < 60 { return String(format: "%.1fs", s) }
     if s < 3600 { return String(format: "%.1fm", s / 60) }
     return String(format: "%.1fh", s / 3600)
 }

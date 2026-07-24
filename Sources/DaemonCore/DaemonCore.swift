@@ -2,10 +2,10 @@ import Dependencies
 import FileSystemWatcher
 import Foundation
 import IPC
-import LSPClient
-import LSPServerDetection
 import Linter
 import Logging
+import LSPClient
+import LSPServerDetection
 
 public actor DaemonCore: CoreProtocol {
     private let root: URL
@@ -18,8 +18,6 @@ public actor DaemonCore: CoreProtocol {
     private var linterConfig: LinterConfig = .defaults
     private var serverRouter: ServerRouter?
     private let watchCoordinator: WatchCoordinator
-    private let diagnosticsService = DiagnosticsService()
-    private let lintService = LintService()
     private let logger: Logger
 
     public init(root: URL, logger: Logger) {
@@ -27,6 +25,19 @@ public actor DaemonCore: CoreProtocol {
         self.startDate = Date()
         self.logger = logger
         self.watchCoordinator = WatchCoordinator(logger: logger)
+    }
+
+    // MARK: - Services
+
+    // Constructed from current state rather than cached: `serverRouter` starts nil and
+    // is set once in `start()`, so this naturally stays nil until then; lint must keep
+    // working before `start()` runs, so `linterConfig` defaults until it's loaded from disk.
+    private var diagnosticsService: DiagnosticsService? {
+        serverRouter.map { DiagnosticsService(router: $0, fileSystem: fileSystem) }
+    }
+
+    private var lintService: LintService {
+        LintService(config: linterConfig, factory: linterFactory)
     }
 
     // MARK: - Startup
@@ -128,12 +139,11 @@ public actor DaemonCore: CoreProtocol {
         files: [String],
         timeoutSeconds: Double
     ) async -> [String: FileDiagnostics] {
-        guard let router = serverRouter else { return [:] }
-        return await diagnosticsService.diagnose(
-            files: files, timeoutSeconds: timeoutSeconds, router: router, fileSystem: fileSystem)
+        guard let diagnosticsService else { return [:] }
+        return await diagnosticsService.diagnose(files: files, timeoutSeconds: timeoutSeconds)
     }
 
     private func computeLint(files: [String]) async -> [String: String] {
-        await lintService.lint(files: files, config: linterConfig, factory: linterFactory)
+        await lintService.lint(files: files)
     }
 }

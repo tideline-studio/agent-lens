@@ -3,14 +3,21 @@ import IPC
 import LSPClient
 
 /// Groups files by language, routes each group to its LSP client, and turns the
-/// client's response into per-file `FileDiagnostics`. Has no state of its own —
-/// `DaemonCore` owns the `ServerRouter` and decides whether one exists yet.
+/// client's response into per-file `FileDiagnostics`. `router` and `fileSystem` are
+/// fixed at construction — `DaemonCore` constructs one per call, only once its
+/// `ServerRouter` exists (nil before `start()` runs).
 struct DiagnosticsService: Sendable {
+    private let router: ServerRouter
+    private let fileSystem: FileSystem
+
+    init(router: ServerRouter, fileSystem: FileSystem) {
+        self.router = router
+        self.fileSystem = fileSystem
+    }
+
     func diagnose(
         files: [String],
-        timeoutSeconds: Double,
-        router: ServerRouter,
-        fileSystem: FileSystem
+        timeoutSeconds: Double
     ) async -> [String: FileDiagnostics] {
         // Diagnose exactly the files the caller passed — no expansion, ordering, or cap.
         // Group by language. Files whose extension maps to no language aren't
@@ -50,8 +57,7 @@ struct DiagnosticsService: Sendable {
                     continue
                 }
                 tg.addTask {
-                    await diagnoseGroup(
-                        client: client, paths: paths, timeout: timeout, fileSystem: fileSystem)
+                    await diagnoseGroup(client: client, paths: paths, timeout: timeout)
                 }
             }
             var combined: [String: FileDiagnostics] = [:]
@@ -65,8 +71,7 @@ struct DiagnosticsService: Sendable {
     private func diagnoseGroup(
         client: any LSPClient,
         paths: [String],
-        timeout: Duration,
-        fileSystem: FileSystem
+        timeout: Duration
     ) async -> [String: FileDiagnostics] {
         // Read each file into a DocumentInput; the client owns the open/change/version
         // decision. Files that can't be stat'd are reported stale (we never saw them).

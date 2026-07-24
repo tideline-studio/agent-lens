@@ -1,7 +1,7 @@
 import FileSystemWatcher
 import IPC
-import LSPClient
 import Logging
+import LSPClient
 
 /// Owns the file-watch registry and the FSEvents→LSP watch pipeline: which LSP
 /// servers asked to be told about which globs, and turning raw filesystem events

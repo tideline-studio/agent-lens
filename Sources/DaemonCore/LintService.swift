@@ -1,15 +1,24 @@
 import IPC
-import LSPClient
 import Linter
+import LSPClient
 
 /// Groups files by language and runs each language's linter once for its whole
-/// batch. Has no state of its own — `DaemonCore` owns the linter config and factory.
+/// batch. `config` and `factory` are fixed at construction — `DaemonCore` constructs
+/// one per call from its current `linterConfig`, which is `.defaults` until `start()`
+/// loads it from disk, so lint keeps working before `start()` runs.
 struct LintService: Sendable {
-    func lint(
-        files: [String],
+    private let config: LinterConfig
+    private let factory: @Sendable (Language, LinterConfig) -> (any LinterRunner)?
+
+    init(
         config: LinterConfig,
-        factory: @Sendable (Language, LinterConfig) -> (any LinterRunner)?
-    ) async -> [String: String] {
+        factory: @escaping @Sendable (Language, LinterConfig) -> (any LinterRunner)?
+    ) {
+        self.config = config
+        self.factory = factory
+    }
+
+    func lint(files: [String]) async -> [String: String] {
         // Group by language so each linter runs once for its whole batch, not once per
         // file. Files with no linter still get an empty result so callers see them.
         var byLanguage: [Language: [String]] = [:]
